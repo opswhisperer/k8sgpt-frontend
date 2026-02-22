@@ -2,6 +2,16 @@
 
 Simple HTML frontend for K8sGPT operator results.
 
+## Disclosure
+
+This project was created and iterated with assistance from OpenAI Codex.
+
+## Open-Source Attribution
+
+Third-party dependency attribution is documented in:
+
+- `THIRD_PARTY_NOTICES.md`
+
 ## What it does
 
 - Reads K8sGPT result CRs from `k8sgpt-operator-system` (configurable).
