@@ -46,7 +46,7 @@ spec:
       serviceAccountName: k8sgpt-frontend
       containers:
       - name: frontend
-        image: ghcr.io/your-org/k8sgpt-frontend:latest
+        image: ghcr.io/opswhisperer/k8sgpt-frontend:latest
         imagePullPolicy: IfNotPresent
         args:
         - "--addr=:8080"

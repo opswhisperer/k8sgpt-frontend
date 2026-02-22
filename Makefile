@@ -6,7 +6,7 @@ GO ?= $(shell command -v go 2>/dev/null || echo /usr/local/go/bin/go)
 GOCACHE ?= $(CURDIR)/.cache/go-build
 GOMODCACHE ?= $(CURDIR)/.cache/go-mod
 
-IMAGE ?= ghcr.io/your-org/k8sgpt-frontend:latest
+IMAGE ?= ghcr.io/opswhisperer/k8sgpt-frontend:latest
 KUSTOMIZE_OVERLAY ?= deploy/overlays/local
 
 .PHONY: help tidy build run clean docker-build docker-push deploy

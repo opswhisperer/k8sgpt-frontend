@@ -42,8 +42,8 @@ make build
 1. Build and push image:
 
 ```bash
-docker build -t ghcr.io/your-org/k8sgpt-frontend:latest .
-docker push ghcr.io/your-org/k8sgpt-frontend:latest
+docker build -t ghcr.io/opswhisperer/k8sgpt-frontend:latest .
+docker push ghcr.io/opswhisperer/k8sgpt-frontend:latest
 ```
 
 2. Configure Kustomize overlay values (kept out of git):
