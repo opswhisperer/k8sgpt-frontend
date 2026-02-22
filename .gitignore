@@ -1,0 +1,17 @@
+# Build artifacts
+bin/
+k8sgpt-frontend
+
+# Go build/test cache
+.cache/
+
+# Local env/config
+.env
+.env.*
+*.local
+deploy/overlays/local/settings.env
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
