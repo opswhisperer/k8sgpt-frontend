@@ -42,8 +42,8 @@ make build
 1. Build and push image:
 
 ```bash
-docker build -t ghcr.io/opswhisperer/k8sgpt-frontend:latest .
-docker push ghcr.io/opswhisperer/k8sgpt-frontend:latest
+docker build -t ghcr.io/<user>/k8sgpt-frontend:latest .
+docker push ghcr.io/<user>/k8sgpt-frontend:latest
 ```
 
 2. Configure Kustomize overlay values (kept out of git):
@@ -85,8 +85,6 @@ Resources include:
 - `Gateway` (class `istio`) with HTTP/HTTPS listeners
 - `HTTPRoute` for HTTP -> HTTPS redirect
 - `HTTPRoute` for HTTPS traffic to `k8sgpt-frontend` service
-
-No domain is stored in git anymore.
 
 ## Config
 
