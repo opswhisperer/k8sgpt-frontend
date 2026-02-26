@@ -51,6 +51,11 @@ spec:
         args:
         - "--addr=:8080"
         - "--result-namespace=k8sgpt-operator-system"
+        env:
+        - name: APPRISE_URL
+          value: ""
+        - name: POLL_INTERVAL
+          value: "60"
         ports:
         - containerPort: 8080
           name: http

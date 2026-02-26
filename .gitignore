@@ -1,6 +1,6 @@
 # Build artifacts
 bin/
-k8sgpt-frontend
+/k8sgpt-frontend
 
 # Go build/test cache
 .cache/
