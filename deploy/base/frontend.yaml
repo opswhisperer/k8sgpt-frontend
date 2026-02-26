@@ -53,11 +53,21 @@ spec:
         - "--result-namespace=k8sgpt-operator-system"
         env:
         - name: APPRISE_URL
-          value: ""
+          valueFrom:
+            configMapKeyRef:
+              name: k8sgpt-frontend-settings
+              key: APPRISE_URL
         - name: UI_URL
-          value: ""
+          valueFrom:
+            configMapKeyRef:
+              name: k8sgpt-frontend-settings
+              key: UI_URL
+              optional: true
         - name: POLL_INTERVAL
-          value: "60"
+          valueFrom:
+            configMapKeyRef:
+              name: k8sgpt-frontend-settings
+              key: POLL_INTERVAL
         ports:
         - containerPort: 8080
           name: http
