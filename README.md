@@ -37,6 +37,29 @@ make build
 ./bin/k8sgpt-frontend --kubeconfig "$HOME/.kube/config" --result-namespace k8sgpt-operator-system
 ```
 
+### Apprise notifications (local)
+
+1. Start the [Apprise API](https://github.com/caronc/apprise-api) server with Docker:
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e APPRISE_URLS="slack://token/channel" \
+  caronc/apprise-api:latest
+```
+
+Replace `slack://token/channel` with any [Apprise service URL](https://github.com/caronc/apprise/wiki).
+
+2. Run the frontend pointing at it:
+
+```bash
+go run ./cmd/k8sgpt-frontend \
+  --kubeconfig "$HOME/.kube/config" \
+  --apprise-url http://localhost:8000/notify/ \
+  --poll-interval 60
+```
+
+On startup (and every `--poll-interval` seconds) any k8sgpt results found in the cluster will trigger a notification.
+
 ## Run inside the cluster
 
 1. Build and push image:
@@ -93,6 +116,8 @@ Flags (or env vars):
 - `--addr` / `ADDR` (default `:8080`)
 - `--result-namespace` / `RESULT_NAMESPACE` (default `k8sgpt-operator-system`)
 - `--kubeconfig` / `KUBECONFIG` (default `~/.kube/config`)
+- `--apprise-url` / `APPRISE_URL` (default empty = disabled) — Apprise API `/notify/` endpoint
+- `--poll-interval` / `POLL_INTERVAL` (default `60`) — polling interval in seconds
 
 ## API endpoint
 

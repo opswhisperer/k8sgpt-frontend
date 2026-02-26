@@ -59,3 +59,33 @@ replacements:
       name: k8sgpt-frontend
     fieldPaths:
     - spec.template.spec.containers.0.image
+- source:
+    kind: ConfigMap
+    name: k8sgpt-frontend-settings
+    fieldPath: data.APPRISE_URL
+  targets:
+  - select:
+      kind: Deployment
+      name: k8sgpt-frontend
+    fieldPaths:
+    - spec.template.spec.containers.0.env.0.value
+- source:
+    kind: ConfigMap
+    name: k8sgpt-frontend-settings
+    fieldPath: data.UI_URL
+  targets:
+  - select:
+      kind: Deployment
+      name: k8sgpt-frontend
+    fieldPaths:
+    - spec.template.spec.containers.0.env.1.value
+- source:
+    kind: ConfigMap
+    name: k8sgpt-frontend-settings
+    fieldPath: data.POLL_INTERVAL
+  targets:
+  - select:
+      kind: Deployment
+      name: k8sgpt-frontend
+    fieldPaths:
+    - spec.template.spec.containers.0.env.2.value
