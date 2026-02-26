@@ -47,7 +47,7 @@ spec:
       containers:
       - name: frontend
         image: ghcr.io/opswhisperer/k8sgpt-frontend:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         args:
         - "--addr=:8080"
         - "--result-namespace=k8sgpt-operator-system"
