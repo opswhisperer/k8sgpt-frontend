@@ -72,10 +72,20 @@ replacements:
 - source:
     kind: ConfigMap
     name: k8sgpt-frontend-settings
-    fieldPath: data.POLL_INTERVAL
+    fieldPath: data.UI_URL
   targets:
   - select:
       kind: Deployment
       name: k8sgpt-frontend
     fieldPaths:
     - spec.template.spec.containers.0.env.1.value
+- source:
+    kind: ConfigMap
+    name: k8sgpt-frontend-settings
+    fieldPath: data.POLL_INTERVAL
+  targets:
+  - select:
+      kind: Deployment
+      name: k8sgpt-frontend
+    fieldPaths:
+    - spec.template.spec.containers.0.env.2.value

@@ -17,6 +17,7 @@ func main() {
 	resultNS := flag.String("result-namespace", "k8sgpt-operator-system", "namespace to list results from (env: RESULT_NAMESPACE)")
 	kubeconfig := flag.String("kubeconfig", "", "path to kubeconfig; empty = in-cluster (env: KUBECONFIG)")
 	appriseURL := flag.String("apprise-url", "", "Apprise API /notify/ endpoint URL; empty = disabled (env: APPRISE_URL)")
+	uiURL := flag.String("ui-url", "", "base URL of this UI included in notifications (env: UI_URL)")
 	pollInterval := flag.Int("poll-interval", 60, "how often to poll for new results in seconds (env: POLL_INTERVAL)")
 	flag.Parse()
 
@@ -40,6 +41,7 @@ func main() {
 	envOverrideString("result-namespace", "RESULT_NAMESPACE")
 	envOverrideString("kubeconfig", "KUBECONFIG")
 	envOverrideString("apprise-url", "APPRISE_URL")
+	envOverrideString("ui-url", "UI_URL")
 	envOverrideInt("poll-interval", "POLL_INTERVAL")
 
 	// Build k8s config: try in-cluster first, fall back to kubeconfig file.
@@ -59,8 +61,8 @@ func main() {
 	// Start background poller only when an Apprise URL is configured.
 	if *appriseURL != "" {
 		interval := time.Duration(*pollInterval) * time.Second
-		log.Printf("starting poller: apprise-url=%s poll-interval=%s", *appriseURL, interval)
-		go runPoller(clients, *resultNS, *appriseURL, interval)
+		log.Printf("starting poller: apprise-url=%s poll-interval=%s ui-url=%s", *appriseURL, interval, *uiURL)
+		go runPoller(clients, *resultNS, *appriseURL, *uiURL, interval)
 	}
 
 	mux := http.NewServeMux()
