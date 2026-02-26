@@ -14,22 +14,20 @@ var (
 )
 
 // runPoller is started as a goroutine from main. It polls immediately on
-// startup (seeding the seen-UID map without sending notifications), then
-// polls on each ticker interval and sends notifications for new results.
+// startup and sends notifications for any existing results, then continues
+// polling on each ticker interval for new results.
 func runPoller(clients *Clients, namespace, appriseURL string, interval time.Duration) {
-	firstPoll := true
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
-		poll(clients, namespace, appriseURL, firstPoll)
-		firstPoll = false
+		poll(clients, namespace, appriseURL)
 
 		<-ticker.C
 	}
 }
 
-func poll(clients *Clients, namespace, appriseURL string, seed bool) {
+func poll(clients *Clients, namespace, appriseURL string) {
 	results, err := fetchResults(clients, namespace)
 	if err != nil {
 		log.Printf("poller: fetchResults error: %v", err)
@@ -44,11 +42,6 @@ func poll(clients *Clients, namespace, appriseURL string, seed bool) {
 			continue
 		}
 		seenUIDs[r.UID] = struct{}{}
-
-		if seed {
-			// First poll: record UIDs but do not send notifications.
-			continue
-		}
 
 		if err := sendNotification(appriseURL, r); err != nil {
 			log.Printf("poller: sendNotification error for %s: %v", r.UID, err)
