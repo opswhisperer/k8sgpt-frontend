@@ -24,7 +24,7 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 func sendNotification(url string, r Result, uiURL string) error {
 	bodyText := fmt.Sprintf("Namespace: %s\nResource: %s/%s\n\n%s", r.Namespace, r.Kind, r.Name, r.Details)
 	if uiURL != "" {
-		bodyText += fmt.Sprintf("\n\n%s", uiURL)
+		bodyText += fmt.Sprintf("\n\nView in UI: %s", uiURL)
 	}
 	body, _ := json.Marshal(apprisePayload{
 		Title: fmt.Sprintf("K8sGPT: %s/%s (%s)", r.Namespace, r.Name, r.Kind),
