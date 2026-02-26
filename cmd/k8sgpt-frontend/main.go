@@ -13,11 +13,11 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address")
-	resultNS := flag.String("result-namespace", "k8sgpt-operator-system", "namespace to list results from")
-	kubeconfig := flag.String("kubeconfig", "", "path to kubeconfig (empty = in-cluster)")
-	appriseURL := flag.String("apprise-url", "", "Apprise API endpoint URL (empty = disabled)")
-	pollInterval := flag.Int("poll-interval", 60, "polling interval in seconds")
+	addr := flag.String("addr", ":8080", "listen address (env: ADDR)")
+	resultNS := flag.String("result-namespace", "k8sgpt-operator-system", "namespace to list results from (env: RESULT_NAMESPACE)")
+	kubeconfig := flag.String("kubeconfig", "", "path to kubeconfig; empty = in-cluster (env: KUBECONFIG)")
+	appriseURL := flag.String("apprise-url", "", "Apprise API /notify/ endpoint URL; empty = disabled (env: APPRISE_URL)")
+	pollInterval := flag.Int("poll-interval", 60, "how often to poll for new results in seconds (env: POLL_INTERVAL)")
 	flag.Parse()
 
 	// env-var fallback: override flag default when the flag was not set
