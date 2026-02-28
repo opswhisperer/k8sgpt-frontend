@@ -4,7 +4,7 @@ Simple HTML frontend for K8sGPT operator results.
 
 ## Disclosure
 
-This project was created and iterated with assistance from OpenAI Codex.
+This project was created and iterated with assistance from OpenAI Codex & Claude Code.
 
 ## Open-Source Attribution
 
