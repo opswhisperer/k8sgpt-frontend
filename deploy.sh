@@ -17,7 +17,7 @@ if [[ -z "$IMAGE" ]]; then
 fi
 
 echo "==> Building image: $IMAGE"
-docker build -t "$IMAGE" .
+docker build --no-cache -t "$IMAGE" .
 
 echo "==> Pushing image: $IMAGE"
 docker push "$IMAGE"
