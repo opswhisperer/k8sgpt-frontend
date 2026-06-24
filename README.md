@@ -30,10 +30,10 @@ go run ./cmd/k8sgpt-frontend --kubeconfig "$HOME/.kube/config" --result-namespac
 
 Then open [http://localhost:8080](http://localhost:8080).
 
-Or using Make:
+Or build first:
 
 ```bash
-make build
+go build -o bin/k8sgpt-frontend ./cmd/k8sgpt-frontend
 ./bin/k8sgpt-frontend --kubeconfig "$HOME/.kube/config" --result-namespace k8sgpt-operator-system
 ```
 
@@ -58,7 +58,7 @@ go run ./cmd/k8sgpt-frontend \
   --poll-interval 60
 ```
 
-On startup (and every `--poll-interval` seconds) any k8sgpt results found in the cluster will trigger a notification.
+On startup (and every `--poll-interval` seconds) results are checked. A notification is only sent after a result has been present continuously for at least `--notify-delay` seconds (default 5 minutes). Results that clear before the delay elapses are silently suppressed — no notification is sent.
 
 ## Run inside the cluster
 
@@ -79,7 +79,7 @@ cp deploy/overlays/local/settings.env.example deploy/overlays/local/settings.env
 3. Deploy:
 
 ```bash
-make deploy
+kubectl apply -k deploy/overlays/local
 ```
 
 4. Access:

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K8sGPT Frontend</title>
+  <style>
+    :root {
+      --bg: #f3f7f9;
+      --panel: #ffffff;
+      --ink: #16202a;
+      --muted: #5f6f7d;
+      --accent: #0a7b83;
+      --warn: #c73e1d;
+      --shadow: 0 8px 28px rgba(17, 33, 48, 0.08);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 0% 0%, #dcecf2 0%, transparent 32%),
+                  radial-gradient(circle at 100% 0%, #e3f4f0 0%, transparent 28%),
+                  var(--bg);
+    }
+
+    .shell {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .header {
+      background: linear-gradient(120deg, #10324f, #18566f);
+      color: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.8rem;
+      letter-spacing: 0.01em;
+    }
+
+    .meta {
+      margin-top: 8px;
+      color: #d3e8f1;
+      font-size: 0.95rem;
+    }
+
+    .error {
+      margin-top: 16px;
+      background: #ffe8e3;
+      border: 1px solid #f2b8a9;
+      color: #7e2010;
+      padding: 12px 14px;
+      border-radius: 10px;
+    }
+
+    .ns-block {
+      margin-top: 22px;
+      background: var(--panel);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: fadeUp .28s ease;
+    }
+
+    .ns-title {
+      margin: 0;
+      padding: 16px 18px;
+      background: #e8f3f7;
+      border-bottom: 1px solid #d9e7ee;
+      font-size: 1.1rem;
+    }
+
+    .type-section {
+      padding: 14px 18px;
+      border-bottom: 1px solid #edf1f4;
+    }
+
+    .type-section:last-child { border-bottom: 0; }
+
+    .type-title {
+      margin: 0 0 10px 0;
+      font-size: 0.98rem;
+      color: #20495e;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      border: 1px solid #e4ebf0;
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfdfe;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .name {
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .sev {
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .sev.warn, .sev.error, .sev.critical {
+      background: var(--warn);
+    }
+
+    .line {
+      font-size: 0.9rem;
+      color: var(--ink);
+      margin: 7px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    ul.suggestions {
+      margin: 8px 0 0 16px;
+      padding: 0;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 760px) {
+      .shell { padding: 14px; }
+      .header { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="header">
+      <h1>K8sGPT Results</h1>
+      <div class="meta">Total findings: {{ .Total }} | Generated: {{ .GeneratedAt }}</div>
+      {{ if .Error }}
+      <div class="error">{{ .Error }}</div>
+      {{ end }}
+    </section>
+
+    {{ if eq .Total 0 }}
+      <section class="ns-block">
+        <h2 class="ns-title">No findings</h2>
+        <div class="type-section muted">No K8sGPT result objects were returned.</div>
+      </section>
+    {{ end }}
+
+    {{ range $ns := .Namespaces }}
+      <section class="ns-block">
+        <h2 class="ns-title">Namespace: {{ $ns }}</h2>
+        {{ range $kind := index $.TypesByNS $ns }}
+          <div class="type-section">
+            <h3 class="type-title">{{ $kind }}</h3>
+            <div class="cards">
+              {{ range $r := index (index $.ByNamespace $ns) $kind }}
+                <article class="card">
+                  <div class="card-head">
+                    <div class="name">{{ $r.Name }}</div>
+                    <span class="sev {{ lower $r.Severity }}">{{ $r.Severity }}</span>
+                  </div>
+                  <p class="line">{{ if $r.Message }}{{ $r.Message }}{{ else }}No message{{ end }}</p>
+                  {{ if $r.Details }}<p class="muted">{{ $r.Details }}</p>{{ end }}
+                  <p class="muted">Source: {{ $r.Source }}</p>
+                  {{ if $r.Suggestions }}
+                    <ul class="suggestions muted">
+                      {{ range $s := $r.Suggestions }}
+                        <li>{{ $s }}</li>
+                      {{ end }}
+                    </ul>
+                  {{ end }}
+                </article>
+              {{ end }}
+            </div>
+          </div>
+        {{ end }}
+      </section>
+    {{ end }}
+  </div>
+</body>
+</html>

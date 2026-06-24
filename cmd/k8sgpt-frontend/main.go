@@ -18,7 +18,8 @@ func main() {
 	kubeconfig := flag.String("kubeconfig", "", "path to kubeconfig; empty = in-cluster (env: KUBECONFIG)")
 	appriseURL := flag.String("apprise-url", "", "Apprise API /notify/ endpoint URL; empty = disabled (env: APPRISE_URL)")
 	uiURL := flag.String("ui-url", "", "base URL of this UI included in notifications (env: UI_URL)")
-	pollInterval := flag.Int("poll-interval", 60, "how often to poll for new results in seconds (env: POLL_INTERVAL)")
+	pollInterval  := flag.Int("poll-interval", 60, "how often to poll for new results in seconds (env: POLL_INTERVAL)")
+	notifyDelay   := flag.Int("notify-delay", 300, "seconds an issue must persist before a notification is sent; 0 = notify immediately (env: NOTIFY_DELAY)")
 	flag.Parse()
 
 	// env-var fallback: override flag default when the flag was not set
@@ -43,6 +44,7 @@ func main() {
 	envOverrideString("apprise-url", "APPRISE_URL")
 	envOverrideString("ui-url", "UI_URL")
 	envOverrideInt("poll-interval", "POLL_INTERVAL")
+	envOverrideInt("notify-delay", "NOTIFY_DELAY")
 
 	// Build k8s config: try in-cluster first, fall back to kubeconfig file.
 	cfg, err := rest.InClusterConfig()
@@ -61,8 +63,9 @@ func main() {
 	// Start background poller only when an Apprise URL is configured.
 	if *appriseURL != "" {
 		interval := time.Duration(*pollInterval) * time.Second
-		log.Printf("starting poller: apprise-url=%s poll-interval=%s ui-url=%s", *appriseURL, interval, *uiURL)
-		go runPoller(clients, *resultNS, *appriseURL, *uiURL, interval)
+		delay := time.Duration(*notifyDelay) * time.Second
+		log.Printf("starting poller: apprise-url=%s poll-interval=%s notify-delay=%s ui-url=%s", *appriseURL, interval, delay, *uiURL)
+		go runPoller(clients, *resultNS, *appriseURL, *uiURL, interval, delay)
 	}
 
 	mux := http.NewServeMux()
