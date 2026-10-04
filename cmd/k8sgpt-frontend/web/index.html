@@ -24,7 +24,7 @@ button,input,select{font:inherit;color:inherit}
 a{color:var(--accent)}
 code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
 .wrap{max-width:1180px;margin:0 auto;padding:16px}
-header.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
+header.top{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
 header.top h1{font-size:1.25rem;margin:0;letter-spacing:-.01em}
 header.top h1 b{color:var(--accent)}
 .grow{flex:1}
@@ -36,6 +36,8 @@ header.top h1 b{color:var(--accent)}
 .btn.small{padding:2px 8px;font-size:.82rem}
 .btn:disabled{opacity:.5;cursor:default}
 .pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:600;font-size:.88rem}
+.pill .chev{color:var(--muted);font-size:.75em;transition:transform .15s}
+.pill[aria-expanded=true] .chev{transform:rotate(180deg)}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
 .s-ok .dot{background:var(--ok)}.s-degraded .dot{background:var(--warn)}.s-failing .dot{background:var(--bad)}
 .banner{border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid}
@@ -43,7 +45,7 @@ header.top h1 b{color:var(--accent)}
 .banner.warn{background:var(--warn-bg);border-color:var(--warn)}
 .banner b{color:var(--bad)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
-#health{padding:14px 16px;margin-bottom:14px}
+#health{position:absolute;top:calc(100% + 6px);left:0;z-index:20;width:min(760px,100%);max-height:min(70vh,640px);overflow:auto;padding:14px 16px;box-shadow:0 10px 30px rgba(10,14,20,.22)}
 #health h2{font-size:1rem;margin:0 0 10px}
 .hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
 .hcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2)}
@@ -123,14 +125,14 @@ dialog .dsub{color:var(--muted);font-size:.85rem;margin-bottom:12px;overflow-wra
 <div class="wrap">
   <header class="top">
     <h1><b>K8sGPT</b> findings</h1>
-    <button id="pill" class="pill" type="button" aria-expanded="false" aria-controls="health"><span class="dot"></span><span id="pillText">Loading…</span></button>
+    <button id="pill" class="pill" type="button" aria-expanded="false" aria-controls="health"><span class="dot"></span><span id="pillText">Loading…</span><span class="chev" aria-hidden="true">▾</span></button>
+    <section id="health" class="panel" hidden></section>
     <span class="grow"></span>
     <span class="meta" id="polled"></span>
     <button class="btn" id="refresh" type="button">Refresh</button>
   </header>
 
   <div id="banners"></div>
-  <section id="health" class="panel" hidden></section>
 
   <div class="tiles" id="tiles"></div>
 
@@ -636,11 +638,17 @@ $("#fNs").onchange = e => { st.ns = e.target.value; renderList(); };
 $("#fKind").onchange = e => { st.kind = e.target.value; renderList(); };
 $("#groupBy").onchange = e => { st.groupBy = e.target.value; store.set("groupBy", st.groupBy); renderList(); };
 $("#showHidden").onchange = e => { st.showHidden = e.target.checked; store.set("showHidden", st.showHidden); renderList(); };
-$("#pill").onclick = () => {
-  const h = $("#health"); h.hidden = !h.hidden;
-  $("#pill").setAttribute("aria-expanded", String(!h.hidden));
-  store.set("healthOpen", !h.hidden);
-};
+function setHealthOpen(open){
+  $("#health").hidden = !open;
+  $("#pill").setAttribute("aria-expanded", String(open));
+}
+$("#pill").onclick = () => setHealthOpen($("#health").hidden);
+document.addEventListener("click", e => {
+  if (!$("#health").hidden && e.target.isConnected && !e.target.closest("#health, #pill")) setHealthOpen(false);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$("#health").hidden && !document.querySelector("dialog[open]")) setHealthOpen(false);
+});
 $("#refresh").onclick = async () => {
   $("#refresh").disabled = true;
   try { await api("/api/refresh", {}); } catch {}
@@ -669,7 +677,6 @@ function focusHash(){
 window.addEventListener("hashchange", () => { readHash(); renderFilters(); renderList(); });
 
 readHash();
-if (store.get("healthOpen", false)) { $("#health").hidden = false; $("#pill").setAttribute("aria-expanded", "true"); }
 load();
 setInterval(() => { if (!document.hidden && !document.querySelector("dialog[open]")) load(); }, 60000);
 </script>
