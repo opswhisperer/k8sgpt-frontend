@@ -52,7 +52,7 @@ Defaults shown are the ones `deploy/base` sets.
 | `APPRISE_FORMAT` | `html` | `html`, `markdown` or `text` |
 | `APPRISE_TAG` | | Only notify Apprise URLs with this tag |
 | `NOTIFY_DELAY` | `300` | Seconds a finding must persist before it is notified (`0` = at once) |
-| `NOTIFY_MAX_ITEMS` | `15` | Most findings listed in one message (the rest are counted) |
+| `NOTIFY_MAX_ITEMS` | `10` | Most findings listed in one message (the rest are counted) |
 | `NOTIFY_RESOLVED` | `false` | Also send one message when notified findings clear |
 | `POLL_INTERVAL` | `60` | Seconds between polls |
 | `HEALTH_WINDOW` | `2700` | Seconds an analysis failure counts as current (the operator retries every ~15 min) |

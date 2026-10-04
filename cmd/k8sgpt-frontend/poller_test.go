@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -189,5 +190,21 @@ func TestPollerHealthAlertsOnceAndRecovers(t *testing.T) {
 	}
 	if got := e.poll(a2, time.Minute); len(got) != 0 {
 		t.Fatalf("recovery repeated: %v", titles(got))
+	}
+}
+
+func TestPollerPartialDeliveryNotRetried(t *testing.T) {
+	e := newPollerEnv(t)
+	a := e.app(0)
+	e.sink.setReply(http.StatusFailedDependency, partial424)
+	if got := e.poll(a, 0); len(got) != 1 {
+		t.Fatalf("first poll sent %v", titles(got))
+	}
+	e.sink.setStatus(200)
+	if got := e.poll(a, time.Minute); len(got) != 0 {
+		t.Fatalf("partially delivered message was re-sent: %v", titles(got))
+	}
+	if st := a.notifier.Status(); !strings.Contains(st.LastError, "Discord") {
+		t.Errorf("notifier status should keep the Discord failure: %+v", st)
 	}
 }

@@ -51,7 +51,7 @@ func TestNotifyIssuesCapsAndCompacts(t *testing.T) {
 	if p.Title != "K8sGPT: 8 open issues" {
 		t.Errorf("title = %q", p.Title)
 	}
-	if got := strings.Count(p.Body, "<code>web-"); got != 3 {
+	if got := strings.Count(p.Body, "<code>apps/web-"); got != 3 {
 		t.Errorf("listed %d items, want 3", got)
 	}
 	if !strings.Contains(p.Body, "…and 5 more.") || strings.Contains(p.Body, "Suggested fix") {
@@ -102,5 +102,43 @@ func TestNotifyHealthAndErrors(t *testing.T) {
 	}
 	if st := n.Status(); st.LastError == "" || st.LastSent == nil || !st.Configured {
 		t.Errorf("status after failure = %+v", st)
+	}
+}
+
+func TestNotifyPartialDeliveryCountsAsSent(t *testing.T) {
+	sink := newAppriseSink(t)
+	sink.setReply(http.StatusFailedDependency, partial424)
+	n := &Notifier{URL: sink.URL}
+	if err := n.SendTest(nil); err != nil {
+		t.Fatalf("partial delivery should not be an error: %v", err)
+	}
+	st := n.Status()
+	if st.LastSent == nil || !strings.Contains(st.LastError, "Discord") || strings.Contains(st.LastError, "Pushover") {
+		t.Errorf("status = %+v", st)
+	}
+
+	sink.setReply(http.StatusFailedDependency, `{"details":[["WARNING","t","Failed to send Discord notification."]]}`)
+	if err := n.SendTest(nil); err == nil || !strings.Contains(err.Error(), "Discord") {
+		t.Errorf("total failure err = %v", err)
+	}
+}
+
+func TestLargeBatchFitsDiscord(t *testing.T) {
+	sink := newAppriseSink(t)
+	n := &Notifier{URL: sink.URL, UIURL: "https://k8sgpt.example.com"}
+	var rs []Result
+	for i := 0; i < 78; i++ {
+		rs = append(rs, res("Security/ServiceAccount", fmt.Sprintf("namespace-%02d", i), "default",
+			"Default service account is being used by pods: [pod-aaaaaaaa-1 pod-bbbbbbbb-2 pod-cccccccc-3 pod-dddddddd-4]"))
+	}
+	if err := n.NotifyIssues(rs, true); err != nil {
+		t.Fatal(err)
+	}
+	body := sink.all()[0].Body
+	if len(body) > 2000 {
+		t.Errorf("compact body is %d bytes, over Discord's 2,000:\n%s", len(body), body)
+	}
+	if !strings.Contains(body, "…and 68 more.") || strings.Contains(body, "#q=") {
+		t.Errorf("unexpected compact body:\n%s", body)
 	}
 }

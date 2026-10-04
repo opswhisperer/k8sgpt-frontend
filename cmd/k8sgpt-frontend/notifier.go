@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	htmltemplate "html/template"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -68,12 +70,27 @@ func (n *Notifier) format() string {
 	return "html"
 }
 
+// partialError means Apprise delivered to some targets but not all. The
+// message counts as sent (retrying would duplicate it on the targets that
+// worked), but the failure is reported in the notifier status.
+type partialError struct{ failed []string }
+
+func (e *partialError) Error() string {
+	return "some targets failed: " + strings.Join(e.failed, "; ")
+}
+
 func (n *Notifier) send(title, body, typ string) error {
 	err := n.post(apprisePayload{Title: title, Body: body, Type: typ, Format: n.format(), Tag: n.Tag})
 	now := time.Now().UTC()
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if err != nil {
+	var partial *partialError
+	switch {
+	case errors.As(err, &partial):
+		n.status.LastSent, n.status.LastError, n.status.LastErrorAt = &now, err.Error(), &now
+		log.Printf("notify: %v", err)
+		return nil
+	case err != nil:
 		n.status.LastError, n.status.LastErrorAt = err.Error(), &now
 		return err
 	}
@@ -92,17 +109,54 @@ func (n *Notifier) post(p apprisePayload) error {
 		return fmt.Errorf("apprise POST failed: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
-		return fmt.Errorf("apprise returned status %d: %s", resp.StatusCode, strings.TrimSpace(string(msg)))
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
 	}
-	return nil
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	sent, failed := parseAppriseDetails(raw)
+	if resp.StatusCode == http.StatusFailedDependency && sent > 0 && len(failed) > 0 {
+		return &partialError{failed: failed}
+	}
+	if len(failed) > 0 {
+		return fmt.Errorf("apprise returned status %d: %s", resp.StatusCode, strings.Join(failed, "; "))
+	}
+	msg := strings.TrimSpace(string(raw))
+	if len(msg) > 300 {
+		msg = msg[:300] + "…"
+	}
+	return fmt.Errorf("apprise returned status %d: %s", resp.StatusCode, msg)
+}
+
+// parseAppriseDetails reads the per-target log lines Apprise API returns with
+// a 424 ({"details": [[level, time, message], …]}) and counts deliveries and
+// failures.
+func parseAppriseDetails(raw []byte) (sent int, failed []string) {
+	var body struct {
+		Details [][]string `json:"details"`
+	}
+	if json.Unmarshal(raw, &body) != nil {
+		return 0, nil
+	}
+	for _, d := range body.Details {
+		if len(d) < 3 {
+			continue
+		}
+		level, msg := strings.ToUpper(d[0]), strings.TrimSpace(d[2])
+		switch {
+		case level == "INFO" && strings.HasPrefix(msg, "Sent "):
+			sent++
+		case level == "WARNING" || level == "ERROR":
+			failed = append(failed, msg)
+		}
+	}
+	return sent, failed
 }
 
 // ---- issue messages ----
 
 type issueView struct {
 	Kind, Name, Link string
+	Brief            string // compact mode: first error line, shortened
 	Errors           []string
 	Problem          string
 	Solution         []string
@@ -128,10 +182,16 @@ func (n *Notifier) itemLink(key string) string {
 	return strings.TrimRight(n.UIURL, "/") + "/#q=" + url.QueryEscape(key)
 }
 
+// compactAbove is the batch size above which each finding gets one line
+// (kind, name and a shortened first error) and no per-item link. Several
+// Apprise targets cap message length (Pushover 1,024 characters, Discord
+// 2,000), so large batches must stay short.
+const (
+	compactAbove = 5
+	briefLen     = 90
+)
+
 // buildIssues groups results by namespace, keeping at most MaxItems.
-// compactAbove is the batch size above which messages list only the error
-// lines, not the AI explanation, to keep them readable.
-const compactAbove = 5
 
 func (n *Notifier) buildIssues(results []Result, intro string, resolved bool) issuesMsg {
 	compact := len(results) > compactAbove
@@ -144,7 +204,7 @@ func (n *Notifier) buildIssues(results []Result, intro string, resolved bool) is
 	})
 	max := n.MaxItems
 	if max <= 0 {
-		max = 15
+		max = 10
 	}
 	msg := issuesMsg{Intro: intro, UIURL: n.UIURL, Resolved: resolved}
 	if len(sorted) > max {
@@ -152,21 +212,31 @@ func (n *Notifier) buildIssues(results []Result, intro string, resolved bool) is
 		sorted = sorted[:max]
 	}
 	for _, r := range sorted {
-		label := "Cluster-scoped"
-		if r.Namespace != "" {
-			label = "Namespace " + r.Namespace
+		// Compact messages put the namespace inline instead of under a heading.
+		label := ""
+		if !compact {
+			label = "Cluster-scoped"
+			if r.Namespace != "" {
+				label = "Namespace " + r.Namespace
+			}
 		}
 		if len(msg.Groups) == 0 || msg.Groups[len(msg.Groups)-1].Label != label {
 			msg.Groups = append(msg.Groups, issueGroup{Label: label})
 		}
-		v := issueView{Kind: r.Kind, Name: r.Name, Link: n.itemLink(r.Key)}
-		if !resolved {
-			v.Errors = r.Errors
-			if !compact {
-				v.Problem, v.Solution = r.Problem, r.Solution
-				if v.Problem == "" && len(v.Solution) == 0 {
-					v.Problem = r.Details
-				}
+		v := issueView{Kind: r.Kind, Name: r.Name}
+		switch {
+		case compact:
+			v.Name = displayName(r)
+			if !resolved && len(r.Errors) > 0 {
+				v.Brief = shorten(r.Errors[0], briefLen)
+			}
+		case resolved:
+			v.Link = n.itemLink(r.Key)
+		default:
+			v.Link = n.itemLink(r.Key)
+			v.Errors, v.Problem, v.Solution = r.Errors, r.Problem, r.Solution
+			if v.Problem == "" && len(v.Solution) == 0 {
+				v.Problem = r.Details
 			}
 		}
 		g := &msg.Groups[len(msg.Groups)-1]
@@ -178,9 +248,9 @@ func (n *Notifier) buildIssues(results []Result, intro string, resolved bool) is
 var issuesHTML = htmltemplate.Must(htmltemplate.New("issues").Parse(`
 {{- if .Intro}}<p>{{.Intro}}</p>{{end}}
 {{- range .Groups}}
-<p><b>{{.Label}}</b></p>
+{{- if .Label}}<p><b>{{.Label}}</b></p>{{end}}
 {{- range .Items}}
-<p><b>{{.Kind}}</b> <code>{{.Name}}</code>{{if .Link}} · <a href="{{.Link}}">open</a>{{end}}</p>
+<p><b>{{.Kind}}</b> <code>{{.Name}}</code>{{if .Brief}} — {{.Brief}}{{end}}{{if .Link}} · <a href="{{.Link}}">open</a>{{end}}</p>
 {{- if .Errors}}
 <ul>{{range .Errors}}<li>{{.}}</li>{{end}}</ul>
 {{- end}}
@@ -207,9 +277,9 @@ var issuesMarkdown = texttemplate.Must(texttemplate.New("issues").Funcs(textFunc
 {{- if .Intro}}{{.Intro}}
 
 {{end}}
-{{- range .Groups}}### {{.Label}}
-{{range .Items}}
-**{{.Kind}}** ` + "`{{.Name}}`" + `{{if .Link}} · [open]({{.Link}}){{end}}
+{{- range .Groups}}{{if .Label}}### {{.Label}}
+{{end}}{{range .Items}}
+**{{.Kind}}** ` + "`{{.Name}}`" + `{{if .Brief}} — {{.Brief}}{{end}}{{if .Link}} · [open]({{.Link}}){{end}}
 {{range .Errors}}- {{.}}
 {{end}}
 {{- if .Problem}}
@@ -231,9 +301,9 @@ var issuesText = texttemplate.Must(texttemplate.New("issues").Funcs(textFuncs).P
 {{- if .Intro}}{{.Intro}}
 
 {{end}}
-{{- range .Groups}}== {{.Label}} ==
-{{range .Items}}
-{{.Kind}} {{.Name}}
+{{- range .Groups}}{{if .Label}}== {{.Label}} ==
+{{end}}{{range .Items}}
+{{.Kind}} {{.Name}}{{if .Brief}} — {{.Brief}}{{end}}
 {{range .Errors}}  - {{.}}
 {{end}}
 {{- if .Problem}}  {{.Problem}}
@@ -264,6 +334,14 @@ func (n *Notifier) render(html *htmltemplate.Template, md, text *texttemplate.Te
 		err = html.Execute(&buf, data)
 	}
 	return strings.TrimSpace(buf.String()), err
+}
+
+func shorten(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > n {
+		return strings.TrimSpace(string(r[:n-1])) + "…"
+	}
+	return s
 }
 
 func plural(n int, one, many string) string {

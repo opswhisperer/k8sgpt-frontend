@@ -99,6 +99,7 @@ type appriseSink struct {
 	mu       sync.Mutex
 	payloads []apprisePayload
 	status   int
+	reply    string
 }
 
 func newAppriseSink(t *testing.T) *appriseSink {
@@ -111,6 +112,7 @@ func newAppriseSink(t *testing.T) *appriseSink {
 		defer s.mu.Unlock()
 		s.payloads = append(s.payloads, p)
 		w.WriteHeader(s.status)
+		_, _ = w.Write([]byte(s.reply))
 	}))
 	t.Cleanup(s.Close)
 	return s
@@ -122,8 +124,13 @@ func (s *appriseSink) all() []apprisePayload {
 	return append([]apprisePayload(nil), s.payloads...)
 }
 
-func (s *appriseSink) setStatus(code int) {
+func (s *appriseSink) setStatus(code int) { s.setReply(code, "") }
+
+func (s *appriseSink) setReply(code int, body string) {
 	s.mu.Lock()
-	s.status = code
+	s.status, s.reply = code, body
 	s.mu.Unlock()
 }
+
+// Apprise API's 424 body when one of three targets fails.
+const partial424 = `{"error":"One or more notification could not be sent","details":[["INFO","2026-10-04 01:49:27,343","Notifying 3 service(s)."],["INFO","2026-10-04 01:49:27,551","Sent Pushover notification to ALL_DEVICES."],["WARNING","2026-10-04 01:49:27,605","Failed to send Discord notification: Bad Request - Unsupported Parameters., error=400."],["INFO","2026-10-04 01:49:27,634","Sent AWS SES notification."]]}`

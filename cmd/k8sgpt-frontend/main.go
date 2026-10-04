@@ -32,7 +32,7 @@ func main() {
 	uiURL := flag.String("ui-url", "", "external URL of this UI, used for links in notifications (env: UI_URL)")
 	pollInterval := flag.Int("poll-interval", 60, "how often to poll, in seconds (env: POLL_INTERVAL)")
 	notifyDelay := flag.Int("notify-delay", 300, "seconds an issue must persist before it is notified; 0 = immediately (env: NOTIFY_DELAY)")
-	notifyMax := flag.Int("notify-max-items", 15, "most issues listed in one notification (env: NOTIFY_MAX_ITEMS)")
+	notifyMax := flag.Int("notify-max-items", 10, "most issues listed in one notification (env: NOTIFY_MAX_ITEMS)")
 	notifyResolved := flag.Bool("notify-resolved", false, "also notify when notified issues clear (env: NOTIFY_RESOLVED)")
 	healthWindow := flag.Int("health-window", 2700, "seconds an analysis failure counts as current (env: HEALTH_WINDOW)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
