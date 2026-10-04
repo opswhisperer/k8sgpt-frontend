@@ -129,7 +129,7 @@ func (a *App) Poll(ctx context.Context) {
 	now := a.now()
 
 	results, err := a.kube.Results(ctx)
-	instances, instErr := checkInstances(ctx, a.kube, a.opts.HealthWindow, now)
+	instances, instErr := checkInstances(ctx, a.kube, results, a.opts.HealthWindow, now)
 
 	h := Health{CheckedAt: now, Instances: instances}
 	h.Frontend = FrontendHealth{

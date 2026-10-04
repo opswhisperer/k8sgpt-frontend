@@ -75,6 +75,10 @@ type Analysis struct {
 	FirstAt *time.Time `json:"first_at,omitempty"`
 	LastAt  *time.Time `json:"last_at,omitempty"`
 	Source  string     `json:"source,omitempty"` // "status" or "event"
+	// LastSuccessAt is the most recent time the operator wrote a Result for
+	// this K8sGPT. Results are only written after a successful analysis, so a
+	// write after the last failure means analysis has recovered.
+	LastSuccessAt *time.Time `json:"last_success_at,omitempty"`
 }
 
 // FrontendHealth is this app's own state.
@@ -104,8 +108,16 @@ var errorClasses = []errorClass{
 	{"unreachable", "backend unreachable", regexp.MustCompile(`(?i)connection refused|no such host|i/o timeout|deadline exceeded|context deadline|timeout|status code: 5\d\d\b|\bEOF\b|connection reset|\btls\b`)},
 }
 
-// classifyError maps an AI backend error message to a class and a short reason.
+// serverUnavailable matches the operator failing to reach the k8sgpt server
+// itself (gRPC Unavailable), as opposed to the server failing to reach the AI
+// backend ("failed while calling AI provider").
+var serverUnavailable = regexp.MustCompile(`(?i)code = Unavailable`)
+
+// classifyError maps an analysis error message to a class and a short reason.
 func classifyError(msg string) (class, reason string) {
+	if serverUnavailable.MatchString(msg) && !strings.Contains(strings.ToLower(msg), "calling ai provider") {
+		return "server", "k8sgpt server unavailable"
+	}
 	for _, c := range errorClasses {
 		if c.re.MatchString(msg) {
 			return c.class, c.reason
@@ -129,6 +141,8 @@ func hintFor(class string, in *Instance) string {
 		return fmt.Sprintf("Model %q is not available on %s; check spec.ai.model on the K8sGPT resource.", in.Model, in.Backend)
 	case "unreachable":
 		return "The k8sgpt server cannot reach the AI backend; check network egress, baseUrl and the provider's status page."
+	case "server":
+		return fmt.Sprintf("The operator could not reach the k8sgpt server; this is expected briefly while Deployment %q restarts, otherwise check its pod.", in.Name)
 	}
 	return "See the k8sgpt server and operator logs for details."
 }
@@ -171,8 +185,9 @@ func eventTime(ev map[string]interface{}) *time.Time {
 	return nil
 }
 
-// buildInstance turns a K8sGPT CR, its warning events and server Deployment into an Instance.
-func buildInstance(obj map[string]interface{}, events []unstructured.Unstructured, deploy *unstructured.Unstructured, deployErr error, window time.Duration, now time.Time) Instance {
+// buildInstance turns a K8sGPT CR, its warning events, server Deployment and
+// the time it last wrote a Result into an Instance.
+func buildInstance(obj map[string]interface{}, events []unstructured.Unstructured, deploy *unstructured.Unstructured, deployErr error, lastSuccess *time.Time, window time.Duration, now time.Time) Instance {
 	in := Instance{
 		Name:       str(obj, "metadata", "name"),
 		Backend:    str(obj, "spec", "ai", "backend"),
@@ -223,10 +238,11 @@ func buildInstance(obj map[string]interface{}, events []unstructured.Unstructure
 		}
 	}
 
+	recovered := lastSuccess != nil && a.LastAt != nil && lastSuccess.After(*a.LastAt)
 	switch {
 	case !in.AIEnabled:
 		in.Analysis = Analysis{Status: "disabled"}
-	case a.Message != "" && a.LastAt != nil && now.Sub(*a.LastAt) <= window:
+	case a.Message != "" && a.LastAt != nil && now.Sub(*a.LastAt) <= window && !recovered:
 		a.Status = StatusFailing
 		a.Class, a.Reason = classifyError(a.Message)
 		a.Hint = hintFor(a.Class, &in)
@@ -241,6 +257,7 @@ func buildInstance(obj map[string]interface{}, events []unstructured.Unstructure
 			in.Analysis.Message = scrubMessage(a.Message)
 		}
 	}
+	in.Analysis.LastSuccessAt = lastSuccess
 
 	in.Status = StatusOK
 	if in.Server.Found && in.Server.Ready < in.Server.Desired {
@@ -255,17 +272,41 @@ func buildInstance(obj map[string]interface{}, events []unstructured.Unstructure
 	return in
 }
 
-// checkInstances reads every K8sGPT CR and builds its Instance.
-func checkInstances(ctx context.Context, kube *Kube, window time.Duration, now time.Time) ([]Instance, error) {
+// lastResultWrites returns, per owning K8sGPT name, the latest time a Result
+// was created or updated. Results without an owner label count for every CR
+// (key "").
+func lastResultWrites(results []Result) map[string]time.Time {
+	out := map[string]time.Time{}
+	for _, r := range results {
+		for _, t := range []*time.Time{r.Created, r.Updated} {
+			if t != nil && t.After(out[r.Owner]) {
+				out[r.Owner] = *t
+			}
+		}
+	}
+	return out
+}
+
+// checkInstances reads every K8sGPT CR and builds its Instance. results is
+// the latest Result snapshot (nil if it could not be read).
+func checkInstances(ctx context.Context, kube *Kube, results []Result, window time.Duration, now time.Time) ([]Instance, error) {
 	crs, err := kube.K8sGPTs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list K8sGPT resources: %w", err)
 	}
 	events, evErr := kube.K8sGPTEvents(ctx)
+	writes := lastResultWrites(results)
 	instances := make([]Instance, 0, len(crs))
 	for _, cr := range crs {
 		deploy, derr := kube.Deployment(ctx, cr.GetName())
-		in := buildInstance(cr.Object, events, deploy, derr, window, now)
+		var lastSuccess *time.Time
+		for _, owner := range []string{cr.GetName(), ""} {
+			if t, ok := writes[owner]; ok && (lastSuccess == nil || t.After(*lastSuccess)) {
+				t := t
+				lastSuccess = &t
+			}
+		}
+		in := buildInstance(cr.Object, events, deploy, derr, lastSuccess, window, now)
 		if evErr != nil && in.Analysis.Source == "" {
 			in.Analysis.Message = "cannot read events: " + evErr.Error()
 		}

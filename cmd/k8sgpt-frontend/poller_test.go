@@ -208,3 +208,36 @@ func TestPollerPartialDeliveryNotRetried(t *testing.T) {
 		t.Errorf("notifier status should keep the Discord failure: %+v", st)
 	}
 }
+
+func TestPollerRecoversWhenResultsAreWrittenAfterFailure(t *testing.T) {
+	e := newPollerEnv(t)
+	a := e.app(0)
+	e.poll(a, 0)
+
+	ev := eventObj("fail", "k8sgpt", msg401, e.clock.Add(time.Minute), 1)
+	if _, err := e.dyn.Resource(eventsGVR).Namespace(testNS).Create(context.Background(), ev, metav1.CreateOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.poll(a, time.Minute); len(got) != 1 || got[0].Type != "failure" {
+		t.Fatalf("expected failure alert, got %v", titles(got))
+	}
+
+	// A successful analysis writes a Result after the failure: recovered well
+	// before the failure would age out of the window.
+	r := resultObj("appsnew", "Pod", "apps/new", "pending")
+	_ = unstructured.SetNestedField(r.Object, e.clock.Add(2*time.Minute).Format(time.RFC3339), "metadata", "creationTimestamp")
+	e.addResult(r)
+	got := e.poll(a, 3*time.Minute)
+	recovered := false
+	for _, p := range got {
+		if p.Type == "success" {
+			recovered = true
+		}
+	}
+	if !recovered {
+		t.Fatalf("expected recovery notice, got %v", titles(got))
+	}
+	if h := a.Health(); h.Status == StatusFailing {
+		t.Errorf("health still failing: %s", h.Summary)
+	}
+}

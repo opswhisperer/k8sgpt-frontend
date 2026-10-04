@@ -350,6 +350,7 @@ function renderHealth(){
         <dt>Server</dt><dd>${i.server.found ? `${i.server.ready}/${i.server.desired} ready` : esc(i.server.error || "unknown")}</dd>
         <dt>Analyzers</dt><dd title="${esc((i.filters || []).join(", "))}">${(i.filters || []).length || "default"}</dd>
         <dt>Analysis</dt><dd>${a.status === "failing" ? `<b style="color:var(--bad)">${esc(a.reason)}</b>` : esc(a.status)}${a.last_at ? ` · last failure ${esc(ago(a.last_at))}` : ""}${a.count > 1 ? ` · ${a.count}×` : ""}</dd>
+        ${a.last_success_at ? `<dt>Last results</dt><dd title="${esc(when(a.last_success_at))}">written ${esc(ago(a.last_success_at))}</dd>` : ""}
         ${a.status === "failing" ? `<dt>Fix</dt><dd>${esc(a.hint)}</dd>` : ""}
       </dl>${a.message ? `<div class="msg">${esc(a.message)}</div>` : ""}</div>`;
   }

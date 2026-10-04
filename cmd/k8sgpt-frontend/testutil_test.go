@@ -40,7 +40,10 @@ func resultObj(crName, kind, specName string, errs ...string) *unstructured.Unst
 	return &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "core.k8sgpt.ai/v1alpha1",
 		"kind":       "Result",
-		"metadata":   map[string]interface{}{"name": crName, "namespace": testNS, "uid": "uid-" + crName, "creationTimestamp": "2026-06-11T16:34:31Z"},
+		"metadata": map[string]interface{}{
+			"name": crName, "namespace": testNS, "uid": "uid-" + crName, "creationTimestamp": "2026-06-11T16:34:31Z",
+			"labels": map[string]interface{}{"k8sgpts.k8sgpt.ai/name": "k8sgpt"},
+		},
 		"spec": map[string]interface{}{
 			"kind":    kind,
 			"name":    specName,

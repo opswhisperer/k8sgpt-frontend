@@ -31,6 +31,7 @@ type Result struct {
 	Category     string     `json:"category,omitempty"`
 	BaseKind     string     `json:"base_kind"`
 	ParentObject string     `json:"parent_object,omitempty"`
+	Owner        string     `json:"owner,omitempty"` // name of the K8sGPT CR that wrote it
 	Lifecycle    string     `json:"lifecycle,omitempty"`
 	Backend      string     `json:"backend,omitempty"`
 	Errors       []string   `json:"errors"`
@@ -159,6 +160,7 @@ func normaliseResult(item *unstructured.Unstructured) Result {
 		Category:     category,
 		BaseKind:     baseKind,
 		ParentObject: parent,
+		Owner:        item.GetLabels()["k8sgpts.k8sgpt.ai/name"],
 		Lifecycle:    lifecycle,
 		Backend:      backend,
 		Errors:       errs,
