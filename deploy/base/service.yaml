@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8sgpt-frontend
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+spec:
+  selector:
+    app.kubernetes.io/name: k8sgpt-frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

@@ -1,0 +1,3 @@
+# Hide rules kept in git. See config/example.yaml for every field.
+# Rules added from the dashboard are stored on the data volume instead.
+rules: []

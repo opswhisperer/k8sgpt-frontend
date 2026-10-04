@@ -1,4 +1,22 @@
+# k8sgpt-frontend, installed next to the K8sGPT operator. It reads the K8sGPT and
+# Result resources in its own namespace and never changes the cluster.
+#   kubectl apply -k deploy/base
+#   kubectl -n k8sgpt-operator-system port-forward svc/k8sgpt-frontend 8080:80   → http://localhost:8080
+# Customise with an overlay (see the README): namespace, image, settings, rules, ingress.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: k8sgpt-operator-system
 resources:
-- frontend.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+configMapGenerator:
+  # Hide rules managed in git. The name gets a content hash, so a change rolls the pod.
+  - name: k8sgpt-frontend-config
+    files:
+      - config.yaml
+images:
+  - name: k8sgpt-frontend
+    newName: ghcr.io/opswhisperer/k8sgpt-frontend
+    newTag: latest

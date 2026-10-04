@@ -1,0 +1,50 @@
+# k8sgpt-frontend config file (mounted at /config/config.yaml by deploy/base).
+#
+# It holds hide rules you want in git. Rules added with "Hide…" in the dashboard
+# are stored on the data volume instead; both kinds show in the dashboard's Rules
+# list, but only dashboard rules can be removed there.
+#
+# Hidden findings are left out of the list (unless "Show hidden" is ticked) and
+# never trigger notifications.
+#
+# A rule hides every finding it matches. Every field you set must match; leave
+# out the ones you don't need (at least one is required):
+#
+#   kind         glob, case-insensitive. Matched against the full K8sGPT kind
+#                ("Security/ServiceAccount", "Storage/PersistentVolumeClaim", "Pod")
+#                and against the part after the "/" ("ServiceAccount").
+#                "*" does not cross "/", so use "Security/*" for a whole category.
+#   namespace    glob, case-insensitive. Cluster-scoped findings have no namespace.
+#   name_regex   regular expression (Go RE2 syntax, unanchored) on the object name.
+#   error_regex  regular expression on the error text; matches if any line matches.
+#   note         why this is fine; shown in the dashboard.
+#   until        optional RFC 3339 time after which the rule stops applying.
+
+rules:
+  # Every "default service account is in use" finding, in any namespace.
+  - kind: Security/ServiceAccount
+    error_regex: Default service account is being used
+    note: homelab — workloads use the default SA on purpose
+
+  # Everything in system namespaces you don't manage.
+  - namespace: kube-system
+    note: managed by the distribution
+  - namespace: longhorn-*
+    note: managed by the Longhorn chart
+
+  # Node-level DaemonSet pods (host networking, privileged) from Calico.
+  - kind: Security/Pod
+    namespace: calico-system
+    name_regex: ^(calico-node|csi-node-driver)-
+
+  # Small PVCs that are small on purpose.
+  - kind: Storage/*
+    error_regex: has small capacity
+    note: config volumes are meant to be tiny
+
+  # Snooze a known issue until a date.
+  - kind: HTTPRoute
+    namespace: apps
+    name_regex: ^legacy-web-
+    note: being migrated
+    until: 2026-12-31T00:00:00Z

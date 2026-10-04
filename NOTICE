@@ -1,0 +1,7 @@
+k8sgpt-frontend
+Copyright 2026 Robert Bell
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The binary and container image include third-party Go modules under their own
+licenses; see THIRD_PARTY_NOTICES.md.

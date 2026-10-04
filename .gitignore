@@ -9,7 +9,10 @@ bin/
 .env
 .env.*
 *.local
-deploy/overlays/local/settings.env
+deploy/examples/*/settings.env
+
+# Local run state (default --data-dir)
+/data/
 
 # OS/editor
 .DS_Store

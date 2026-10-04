@@ -1,0 +1,12 @@
+.git
+.github
+.claude
+.cache
+bin
+data
+deploy
+config
+docs
+k8sgpt-frontend
+**/*_test.go
+**/.DS_Store

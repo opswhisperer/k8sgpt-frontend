@@ -12,6 +12,7 @@ awk '{print $1}' go.sum | sed 's@/go.mod$@@' | sort -u
 - `github.com/creack/pty`
 - `github.com/davecgh/go-spew`
 - `github.com/emicklei/go-restful/v3`
+- `github.com/evanphx/json-patch`
 - `github.com/go-logr/logr`
 - `github.com/go-openapi/jsonpointer`
 - `github.com/go-openapi/jsonreference`
@@ -38,6 +39,7 @@ awk '{print $1}' go.sum | sed 's@/go.mod$@@' | sort -u
 - `github.com/munnerz/goautoneg`
 - `github.com/onsi/ginkgo/v2`
 - `github.com/onsi/gomega`
+- `github.com/pkg/errors`
 - `github.com/pmezard/go-difflib`
 - `github.com/rogpeppe/go-internal`
 - `github.com/spf13/pflag`
@@ -55,7 +57,6 @@ awk '{print $1}' go.sum | sed 's@/go.mod$@@' | sort -u
 - `golang.org/x/time`
 - `golang.org/x/tools`
 - `golang.org/x/xerrors`
-- `google.golang.org/appengine`
 - `google.golang.org/protobuf`
 - `gopkg.in/check.v1`
 - `gopkg.in/inf.v0`
@@ -76,6 +77,8 @@ awk '{print $1}' go.sum | sed 's@/go.mod$@@' | sort -u
 The deployment and runtime also rely on these upstream open-source projects:
 
 - Kubernetes
+- K8sGPT and the K8sGPT operator (whose resources this dashboard reads)
+- Apprise / Apprise API (notification delivery)
 - Gateway API
 - Istio
 - cert-manager

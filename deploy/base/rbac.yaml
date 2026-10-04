@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8sgpt-frontend
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+---
+# Read-only, and only in the namespace where the K8sGPT operator writes its results.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8sgpt-frontend-reader
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+rules:
+  # Findings and analyser configuration (backend, model).
+  - apiGroups: ["core.k8sgpt.ai"]
+    resources: ["results", "k8sgpts"]
+    verbs: ["get", "list", "watch"]
+  # The operator records AnalysisFailed events when the AI backend call fails.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list"]
+  # Readiness of the k8sgpt server Deployment.
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8sgpt-frontend-reader
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8sgpt-frontend-reader
+subjects:
+  - kind: ServiceAccount
+    name: k8sgpt-frontend

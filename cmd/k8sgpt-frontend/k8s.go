@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"regexp"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
@@ -13,24 +17,55 @@ import (
 )
 
 // Result is the normalised view of a K8sGPT Result CR.
+//
+// K8sGPT stores every Result in its own namespace; the object the finding is
+// about lives in spec.name ("ns/name", or just "name" when cluster-scoped) and
+// spec.kind ("Pod", or "Category/Kind" such as "Security/ServiceAccount").
 type Result struct {
-	UID       string   `json:"uid"`
-	Name      string   `json:"name"`
-	Namespace string   `json:"namespace"`
-	Kind      string   `json:"kind"`
-	Details   string   `json:"details"`
-	Errors    []string `json:"errors"`
-	Backend   string   `json:"backend"`
+	Key          string     `json:"key"`
+	UID          string     `json:"uid"`
+	ResultName   string     `json:"result_name"`
+	Name         string     `json:"name"`
+	Namespace    string     `json:"namespace"`
+	Kind         string     `json:"kind"`
+	Category     string     `json:"category,omitempty"`
+	BaseKind     string     `json:"base_kind"`
+	ParentObject string     `json:"parent_object,omitempty"`
+	Lifecycle    string     `json:"lifecycle,omitempty"`
+	Backend      string     `json:"backend,omitempty"`
+	Errors       []string   `json:"errors"`
+	Details      string     `json:"details,omitempty"`
+	Problem      string     `json:"problem,omitempty"`
+	Solution     []string   `json:"solution,omitempty"`
+	Created      *time.Time `json:"created,omitempty"`
+	Updated      *time.Time `json:"updated,omitempty"`
 }
 
-// Clients groups the two clients needed throughout the app.
-type Clients struct {
-	Dynamic   dynamic.Interface
-	Discovery discovery.DiscoveryInterface
+// resultKey identifies a finding independently of the Result CR that carries
+// it, so ignores and notification state survive the CR being recreated.
+func resultKey(kind, namespace, name string) string {
+	return kind + "/" + namespace + "/" + name
 }
 
-// buildClients constructs both the dynamic and discovery clients from the given config.
-func buildClients(cfg *rest.Config) (*Clients, error) {
+// defaultGroupVersion is used when discovery cannot find the K8sGPT API group.
+var defaultGroupVersion = schema.GroupVersion{Group: "core.k8sgpt.ai", Version: "v1alpha1"}
+
+var (
+	eventsGVR      = schema.GroupVersionResource{Version: "v1", Resource: "events"}
+	deploymentsGVR = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+)
+
+// Kube reads K8sGPT objects from one namespace.
+type Kube struct {
+	dyn       dynamic.Interface
+	disc      discovery.DiscoveryInterface // nil = always use defaultGroupVersion
+	namespace string
+
+	mu sync.Mutex
+	gv *schema.GroupVersion
+}
+
+func newKube(cfg *rest.Config, namespace string) (*Kube, error) {
 	dyn, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -39,87 +74,185 @@ func buildClients(cfg *rest.Config) (*Clients, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Clients{Dynamic: dyn, Discovery: disc}, nil
+	return &Kube{dyn: dyn, disc: disc, namespace: namespace}, nil
 }
 
-// findResultGVR uses server-side discovery to locate the GVR for resources
-// whose name contains "result" in API groups containing "k8sgpt".
-func findResultGVR(disc discovery.DiscoveryInterface) (schema.GroupVersionResource, error) {
-	lists, err := disc.ServerPreferredResources()
+// groupVersion finds the K8sGPT API group's preferred version once and caches it.
+// A failed lookup is not cached, so a later call retries.
+func (k *Kube) groupVersion() schema.GroupVersion {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.gv != nil {
+		return *k.gv
+	}
+	if k.disc == nil {
+		return defaultGroupVersion
+	}
+	groups, err := k.disc.ServerGroups()
 	if err != nil {
-		return schema.GroupVersionResource{}, err
+		return defaultGroupVersion
 	}
-	for _, list := range lists {
-		if !strings.Contains(list.GroupVersion, "k8sgpt") {
-			continue
-		}
-		gv, err := schema.ParseGroupVersion(list.GroupVersion)
-		if err != nil {
-			continue
-		}
-		for _, r := range list.APIResources {
-			if strings.Contains(strings.ToLower(r.Name), "result") {
-				return schema.GroupVersionResource{
-					Group:    gv.Group,
-					Version:  gv.Version,
-					Resource: r.Name,
-				}, nil
-			}
+	for _, g := range groups.Groups {
+		if strings.Contains(g.Name, "k8sgpt") && g.PreferredVersion.Version != "" {
+			gv := schema.GroupVersion{Group: g.Name, Version: g.PreferredVersion.Version}
+			k.gv = &gv
+			return gv
 		}
 	}
-	return schema.GroupVersionResource{}, fmt.Errorf("no k8sgpt result resource found")
+	return defaultGroupVersion
 }
 
-// fetchResults lists all K8sGPT Result CRs from the given namespace and
-// returns them as normalised Result values.
-func fetchResults(clients *Clients, namespace string) ([]Result, error) {
-	gvr, err := findResultGVR(clients.Discovery)
+func (k *Kube) gvr(resource string) schema.GroupVersionResource {
+	return k.groupVersion().WithResource(resource)
+}
+
+// Results lists all K8sGPT Result CRs and normalises them.
+func (k *Kube) Results(ctx context.Context) ([]Result, error) {
+	list, err := k.dyn.Resource(k.gvr("results")).Namespace(k.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
-
-	list, err := clients.Dynamic.Resource(gvr).Namespace(namespace).List(
-		context.Background(), metav1.ListOptions{},
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	results := make([]Result, 0, len(list.Items))
-	for _, item := range list.Items {
-		uid := string(item.GetUID())
-		ns := item.GetNamespace()
+	for i := range list.Items {
+		results = append(results, normaliseResult(&list.Items[i]))
+	}
+	sort.Slice(results, func(i, j int) bool { return results[i].Key < results[j].Key })
+	return results, nil
+}
 
-		spec, _ := item.Object["spec"].(map[string]interface{})
-		if spec == nil {
-			spec = map[string]interface{}{}
-		}
+func normaliseResult(item *unstructured.Unstructured) Result {
+	kind, _, _ := unstructured.NestedString(item.Object, "spec", "kind")
+	specName, _, _ := unstructured.NestedString(item.Object, "spec", "name")
+	details, _, _ := unstructured.NestedString(item.Object, "spec", "details")
+	backend, _, _ := unstructured.NestedString(item.Object, "spec", "backend")
+	parent, _, _ := unstructured.NestedString(item.Object, "spec", "parentObject")
+	lifecycle, _, _ := unstructured.NestedString(item.Object, "status", "lifecycle")
 
-		details, _ := spec["details"].(string)
-		kind, _ := spec["kind"].(string)
-		name, _ := spec["name"].(string)
-		backend, _ := spec["backend"].(string)
+	ns, name := "", specName
+	if i := strings.Index(specName, "/"); i >= 0 {
+		ns, name = specName[:i], specName[i+1:]
+	}
+	category, baseKind := "", kind
+	if i := strings.LastIndex(kind, "/"); i >= 0 {
+		category, baseKind = kind[:i], kind[i+1:]
+	}
 
-		var errors []string
-		if rawErrors, ok := spec["error"].([]interface{}); ok {
-			for _, e := range rawErrors {
-				if em, ok := e.(map[string]interface{}); ok {
-					if t, ok := em["text"].(string); ok {
-						errors = append(errors, t)
-					}
+	errs := []string{}
+	if raw, ok, _ := unstructured.NestedSlice(item.Object, "spec", "error"); ok {
+		for _, e := range raw {
+			if em, ok := e.(map[string]interface{}); ok {
+				if t, ok := em["text"].(string); ok && t != "" {
+					errs = append(errs, t)
 				}
 			}
 		}
-
-		results = append(results, Result{
-			UID:       uid,
-			Name:      name,
-			Namespace: ns,
-			Kind:      kind,
-			Details:   details,
-			Errors:    errors,
-			Backend:   backend,
-		})
 	}
-	return results, nil
+
+	problem, solution := parseDetails(details)
+	r := Result{
+		Key:          resultKey(kind, ns, name),
+		UID:          string(item.GetUID()),
+		ResultName:   item.GetName(),
+		Name:         name,
+		Namespace:    ns,
+		Kind:         kind,
+		Category:     category,
+		BaseKind:     baseKind,
+		ParentObject: parent,
+		Lifecycle:    lifecycle,
+		Backend:      backend,
+		Errors:       errs,
+		Details:      details,
+		Problem:      problem,
+		Solution:     solution,
+	}
+	if ts := item.GetCreationTimestamp(); !ts.IsZero() {
+		t := ts.Time
+		r.Created = &t
+	}
+	var updated time.Time
+	for _, mf := range item.GetManagedFields() {
+		if mf.Time != nil && mf.Time.After(updated) {
+			updated = mf.Time.Time
+		}
+	}
+	if !updated.IsZero() {
+		r.Updated = &updated
+	}
+	return r
+}
+
+var (
+	solutionMarker = regexp.MustCompile(`(?i)\bsolution:\s*`)
+	errorPrefix    = regexp.MustCompile(`(?i)^\s*error:\s*`)
+	stepMarker     = regexp.MustCompile(`(?:^|\s)\d{1,2}[).]\s+`)
+)
+
+// parseDetails splits K8sGPT's AI explanation ("Error: …\n\nSolution: 1) … 2) …")
+// into the problem statement and numbered solution steps. Text that does not
+// follow that shape comes back as the problem with no steps.
+func parseDetails(details string) (problem string, steps []string) {
+	details = strings.TrimSpace(details)
+	if details == "" {
+		return "", nil
+	}
+	loc := solutionMarker.FindStringIndex(details)
+	if loc == nil {
+		return errorPrefix.ReplaceAllString(details, ""), nil
+	}
+	problem = strings.TrimSpace(errorPrefix.ReplaceAllString(details[:loc[0]], ""))
+	solution := strings.TrimSpace(details[loc[1]:])
+
+	idx := stepMarker.FindAllStringIndex(solution, -1)
+	if len(idx) < 2 {
+		if solution != "" {
+			steps = []string{strings.TrimSpace(stepMarker.ReplaceAllString(solution, " "))}
+		}
+		return problem, steps
+	}
+	if lead := strings.TrimSpace(solution[:idx[0][0]]); lead != "" {
+		steps = append(steps, lead)
+	}
+	for i, m := range idx {
+		end := len(solution)
+		if i+1 < len(idx) {
+			end = idx[i+1][0]
+		}
+		if s := strings.TrimSpace(solution[m[1]:end]); s != "" {
+			steps = append(steps, s)
+		}
+	}
+	return problem, steps
+}
+
+// K8sGPTs lists the K8sGPT CRs (the analyser configuration) in the namespace.
+func (k *Kube) K8sGPTs(ctx context.Context) ([]unstructured.Unstructured, error) {
+	list, err := k.dyn.Resource(k.gvr("k8sgpts")).Namespace(k.namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return list.Items, nil
+}
+
+// K8sGPTEvents lists the Events recorded against K8sGPT CRs in the namespace.
+// The operator records a Warning "AnalysisFailed" event when the AI backend
+// call fails, which is the most reliable signal across operator versions.
+func (k *Kube) K8sGPTEvents(ctx context.Context) ([]unstructured.Unstructured, error) {
+	list, err := k.dyn.Resource(eventsGVR).Namespace(k.namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	var out []unstructured.Unstructured
+	for _, ev := range list.Items {
+		if kind, _, _ := unstructured.NestedString(ev.Object, "involvedObject", "kind"); kind == "K8sGPT" {
+			out = append(out, ev)
+		}
+	}
+	return out, nil
+}
+
+// Deployment fetches a Deployment in the namespace; the operator names the
+// k8sgpt server Deployment after its K8sGPT CR.
+func (k *Kube) Deployment(ctx context.Context, name string) (*unstructured.Unstructured, error) {
+	return k.dyn.Resource(deploymentsGVR).Namespace(k.namespace).Get(ctx, name, metav1.GetOptions{})
 }

@@ -1,213 +1,676 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>K8sGPT Frontend</title>
-  <style>
-    :root {
-      --bg: #f3f7f9;
-      --panel: #ffffff;
-      --ink: #16202a;
-      --muted: #5f6f7d;
-      --accent: #0a7b83;
-      --warn: #c73e1d;
-      --shadow: 0 8px 28px rgba(17, 33, 48, 0.08);
-      --radius: 14px;
-    }
-
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", sans-serif;
-      color: var(--ink);
-      background: radial-gradient(circle at 0% 0%, #dcecf2 0%, transparent 32%),
-                  radial-gradient(circle at 100% 0%, #e3f4f0 0%, transparent 28%),
-                  var(--bg);
-    }
-
-    .shell {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 24px;
-    }
-
-    .header {
-      background: linear-gradient(120deg, #10324f, #18566f);
-      color: white;
-      border-radius: var(--radius);
-      padding: 24px;
-      box-shadow: var(--shadow);
-    }
-
-    .header h1 {
-      margin: 0;
-      font-size: 1.8rem;
-      letter-spacing: 0.01em;
-    }
-
-    .meta {
-      margin-top: 8px;
-      color: #d3e8f1;
-      font-size: 0.95rem;
-    }
-
-    .error {
-      margin-top: 16px;
-      background: #ffe8e3;
-      border: 1px solid #f2b8a9;
-      color: #7e2010;
-      padding: 12px 14px;
-      border-radius: 10px;
-    }
-
-    .ns-block {
-      margin-top: 22px;
-      background: var(--panel);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      animation: fadeUp .28s ease;
-    }
-
-    .ns-title {
-      margin: 0;
-      padding: 16px 18px;
-      background: #e8f3f7;
-      border-bottom: 1px solid #d9e7ee;
-      font-size: 1.1rem;
-    }
-
-    .type-section {
-      padding: 14px 18px;
-      border-bottom: 1px solid #edf1f4;
-    }
-
-    .type-section:last-child { border-bottom: 0; }
-
-    .type-title {
-      margin: 0 0 10px 0;
-      font-size: 0.98rem;
-      color: #20495e;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
-    }
-
-    .card {
-      border: 1px solid #e4ebf0;
-      border-radius: 12px;
-      padding: 12px;
-      background: #fbfdfe;
-    }
-
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-
-    .name {
-      font-weight: 600;
-      overflow-wrap: anywhere;
-    }
-
-    .sev {
-      border-radius: 999px;
-      padding: 3px 8px;
-      font-size: 0.72rem;
-      letter-spacing: 0.04em;
-      font-weight: 700;
-      color: #fff;
-      background: var(--accent);
-    }
-
-    .sev.warn, .sev.error, .sev.critical {
-      background: var(--warn);
-    }
-
-    .line {
-      font-size: 0.9rem;
-      color: var(--ink);
-      margin: 7px 0;
-      overflow-wrap: anywhere;
-    }
-
-    .muted {
-      color: var(--muted);
-      font-size: 0.86rem;
-    }
-
-    ul.suggestions {
-      margin: 8px 0 0 16px;
-      padding: 0;
-    }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(5px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-width: 760px) {
-      .shell { padding: 14px; }
-      .header { padding: 18px; }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K8sGPT Findings</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f6fdf'/%3E%3Cpath d='M9 22V10h3v4.6L16.4 10h3.8l-5 5.2 5.4 6.8h-3.9l-3.6-4.8-1.1 1.1V22z' fill='white'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f5f7fa;--panel:#fff;--panel2:#f0f3f7;--ink:#17202b;--muted:#5d6b7a;--line:#dde3ea;
+  --accent:#2f6fdf;--accent-ink:#fff;--ok:#1f8a4c;--ok-bg:#e3f4ea;--warn:#a86400;--warn-bg:#fdf1dc;
+  --bad:#c23a2b;--bad-bg:#fbe5e2;--code:#eef1f5;--shadow:0 1px 2px rgba(16,24,40,.06),0 2px 8px rgba(16,24,40,.05);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1218;--panel:#171b23;--panel2:#1d222c;--ink:#e3e8ef;--muted:#93a0b0;--line:#2a313d;
+  --accent:#6b9bff;--accent-ink:#0b1020;--ok:#4cc98a;--ok-bg:#15291f;--warn:#f0b04a;--warn-bg:#2d2414;
+  --bad:#ff7a6b;--bad-bg:#33191a;--code:#222833;--shadow:none;color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button,input,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+code,pre{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
+header.top h1{font-size:1.25rem;margin:0;letter-spacing:-.01em}
+header.top h1 b{color:var(--accent)}
+.grow{flex:1}
+.meta{color:var(--muted);font-size:.85rem}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--bad)}
+.btn.small{padding:2px 8px;font-size:.82rem}
+.btn:disabled{opacity:.5;cursor:default}
+.pill{display:inline-flex;align-items:center;gap:7px;border-radius:999px;padding:5px 12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-weight:600;font-size:.88rem}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.s-ok .dot{background:var(--ok)}.s-degraded .dot{background:var(--warn)}.s-failing .dot{background:var(--bad)}
+.banner{border-radius:10px;padding:10px 14px;margin-bottom:12px;border:1px solid}
+.banner.bad{background:var(--bad-bg);border-color:var(--bad);color:var(--ink)}
+.banner.warn{background:var(--warn-bg);border-color:var(--warn)}
+.banner b{color:var(--bad)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+#health{padding:14px 16px;margin-bottom:14px}
+#health h2{font-size:1rem;margin:0 0 10px}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.hcard{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--panel2)}
+.hcard h3{margin:0 0 6px;font-size:.95rem;display:flex;align-items:center;gap:8px}
+dl.kv{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0;font-size:.88rem}
+dl.kv dt{color:var(--muted)}dl.kv dd{margin:0;overflow-wrap:anywhere}
+.msg{background:var(--code);border-radius:6px;padding:6px 8px;margin-top:8px;font-size:.8rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.tile{padding:10px 12px;cursor:pointer;text-align:left;border:1px solid var(--line)}
+.tile .n{font-size:1.45rem;font-weight:700;line-height:1.2}
+.tile .l{color:var(--muted);font-size:.8rem;overflow-wrap:anywhere}
+.tile.on{outline:2px solid var(--accent)}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.toolbar input[type=search]{flex:1 1 220px;min-width:0;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.toolbar select{padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);max-width:100%}
+.toolbar label{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:.9rem}
+.bulk{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px;background:var(--accent);color:var(--accent-ink);border-radius:10px}
+.bulk .btn{background:var(--panel);color:var(--ink);border-color:transparent}
+.group{margin-bottom:18px}
+.group>h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px;display:flex;gap:8px;align-items:center}
+.group>h2 .count{background:var(--panel2);border-radius:999px;padding:0 8px;letter-spacing:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
+.card{padding:11px 13px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card.hid{opacity:.62;border-style:dashed}
+.card.focus{outline:2px solid var(--accent)}
+.chead{display:flex;gap:8px;align-items:flex-start}
+.chead input{margin-top:3px;flex:none}
+.ctitle{flex:1;min-width:0}
+.ctitle .nm{font-weight:600;overflow-wrap:anywhere}
+.ctitle .sub{color:var(--muted);font-size:.82rem;overflow-wrap:anywhere}
+.badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.badge{font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:999px;background:var(--panel2);color:var(--muted);white-space:nowrap}
+.badge.kind{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
+.badge.new{background:var(--warn-bg);color:var(--warn)}
+.badge.hidden{background:var(--panel2)}
+ul.errs{margin:0;padding:0;list-style:none}
+ul.errs li{border-left:3px solid var(--bad);background:var(--bad-bg);padding:4px 8px;border-radius:0 6px 6px 0;margin-bottom:4px;font-size:.84rem;overflow-wrap:anywhere}
+.problem{margin:0;font-size:.88rem}
+.sol{margin:0;padding-left:20px;font-size:.86rem;color:var(--ink)}
+.sol li{margin:2px 0}
+.solh{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px}
+details.raw summary{cursor:pointer;color:var(--muted);font-size:.8rem}
+details.raw pre{white-space:pre-wrap;background:var(--code);padding:8px;border-radius:6px;margin:6px 0 0;overflow-wrap:anywhere}
+.cfoot{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;color:var(--muted);font-size:.78rem;margin-top:auto;padding-top:4px;border-top:1px solid var(--line)}
+.cfoot .sp{flex:1}
+.why{font-size:.8rem;color:var(--muted);background:var(--panel2);border-radius:6px;padding:4px 8px}
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
+dialog::backdrop{background:rgba(10,14,20,.45)}
+dialog form,dialog .dbody{padding:16px 18px}
+dialog h2{margin:0 0 4px;font-size:1.05rem}
+dialog .dsub{color:var(--muted);font-size:.85rem;margin-bottom:12px;overflow-wrap:anywhere}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.opt:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.opt .c{margin-left:auto;color:var(--muted);font-size:.8rem;white-space:nowrap}
+.opt code{background:var(--code);padding:0 4px;border-radius:4px}
+.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:6px 0 4px 28px}
+.fields label,.row label{display:flex;flex-direction:column;font-size:.78rem;color:var(--muted);gap:2px}
+.fields input,.row input,.row select{padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink)}
+.row{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:10px}
+.dactions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.err{color:var(--bad);font-size:.85rem;min-height:1.2em;margin-top:6px}
+.rule{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:6px;display:flex;gap:10px;align-items:flex-start}
+.rule .d{flex:1;min-width:0;overflow-wrap:anywhere}
+.rule .m{color:var(--muted);font-size:.8rem}
+.rule.exp{opacity:.6}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:50;max-width:calc(100vw - 32px)}
+#toast.on{opacity:.95}
+@media (max-width:640px){
+  .wrap{padding:12px}
+  .cards{grid-template-columns:1fr}
+  .fields,.row{grid-template-columns:1fr;margin-left:0}
+}
+</style>
 </head>
 <body>
-  <div class="shell">
-    <section class="header">
-      <h1>K8sGPT Results</h1>
-      <div class="meta">Total findings: {{ .Total }} | Generated: {{ .GeneratedAt }}</div>
-      {{ if .Error }}
-      <div class="error">{{ .Error }}</div>
-      {{ end }}
-    </section>
+<div class="wrap">
+  <header class="top">
+    <h1><b>K8sGPT</b> findings</h1>
+    <button id="pill" class="pill" type="button" aria-expanded="false" aria-controls="health"><span class="dot"></span><span id="pillText">Loading…</span></button>
+    <span class="grow"></span>
+    <span class="meta" id="polled"></span>
+    <button class="btn" id="refresh" type="button">Refresh</button>
+  </header>
 
-    {{ if eq .Total 0 }}
-      <section class="ns-block">
-        <h2 class="ns-title">No findings</h2>
-        <div class="type-section muted">No K8sGPT result objects were returned.</div>
-      </section>
-    {{ end }}
+  <div id="banners"></div>
+  <section id="health" class="panel" hidden></section>
 
-    {{ range $ns := .Namespaces }}
-      <section class="ns-block">
-        <h2 class="ns-title">Namespace: {{ $ns }}</h2>
-        {{ range $kind := index $.TypesByNS $ns }}
-          <div class="type-section">
-            <h3 class="type-title">{{ $kind }}</h3>
-            <div class="cards">
-              {{ range $r := index (index $.ByNamespace $ns) $kind }}
-                <article class="card">
-                  <div class="card-head">
-                    <div class="name">{{ $r.Name }}</div>
-                    <span class="sev {{ lower $r.Severity }}">{{ $r.Severity }}</span>
-                  </div>
-                  <p class="line">{{ if $r.Message }}{{ $r.Message }}{{ else }}No message{{ end }}</p>
-                  {{ if $r.Details }}<p class="muted">{{ $r.Details }}</p>{{ end }}
-                  <p class="muted">Source: {{ $r.Source }}</p>
-                  {{ if $r.Suggestions }}
-                    <ul class="suggestions muted">
-                      {{ range $s := $r.Suggestions }}
-                        <li>{{ $s }}</li>
-                      {{ end }}
-                    </ul>
-                  {{ end }}
-                </article>
-              {{ end }}
-            </div>
-          </div>
-        {{ end }}
-      </section>
-    {{ end }}
+  <div class="tiles" id="tiles"></div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search name, namespace, kind or error…" aria-label="Search">
+    <select id="fNs" aria-label="Namespace"></select>
+    <select id="fKind" aria-label="Kind"></select>
+    <select id="groupBy" aria-label="Group by">
+      <option value="namespace">Group by namespace</option>
+      <option value="kind">Group by kind</option>
+      <option value="none">No grouping</option>
+    </select>
+    <label><input type="checkbox" id="showHidden"> Show hidden</label>
+    <button class="btn" id="rulesBtn" type="button">Rules</button>
   </div>
+
+  <div id="bulk" class="bulk" hidden>
+    <span id="bulkN"></span><span class="grow"></span>
+    <button class="btn small" id="bulkHide" type="button">Hide…</button>
+    <button class="btn small" id="bulkUnhide" type="button">Unhide</button>
+    <button class="btn small" id="bulkAll" type="button">Select all shown</button>
+    <button class="btn small" id="bulkClear" type="button">Clear</button>
+  </div>
+
+  <main id="list"></main>
+</div>
+
+<dialog id="hideDlg">
+  <form method="dialog" id="hideForm">
+    <h2 id="hideTitle">Hide finding</h2>
+    <div class="dsub" id="hideSub"></div>
+    <div id="hideOpts"></div>
+    <div class="row">
+      <label>Note (why is this fine?)<input id="hideNote" maxlength="500" placeholder="e.g. expected for DaemonSets"></label>
+      <label>For<select id="hideFor">
+        <option value="">Until I unhide it</option>
+        <option value="1">1 day</option>
+        <option value="7">7 days</option>
+        <option value="30">30 days</option>
+      </select></label>
+    </div>
+    <div class="err" id="hideErr"></div>
+    <div class="dactions">
+      <button class="btn" value="cancel" formnovalidate>Cancel</button>
+      <button class="btn primary" id="hideGo" value="ok">Hide</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="rulesDlg">
+  <div class="dbody">
+    <h2>Hide rules</h2>
+    <div class="dsub">Hidden findings stay out of the list and never trigger notifications. Rules from the config file can only be changed there.</div>
+    <div id="rulesList"></div>
+    <div class="dactions"><button class="btn" type="button" id="rulesClose">Close</button></div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = {
+  get(k, d){ try { const v = localStorage.getItem("k8sgpt." + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem("k8sgpt." + k, JSON.stringify(v)); } catch {} },
+};
+
+let data = {items: [], rules: [], stale_ignores: [], summary: {}, writable: false};
+let health = null;
+const selected = new Set();
+const st = {
+  q: "", ns: "", kind: "", tile: "",
+  groupBy: store.get("groupBy", "namespace"),
+  showHidden: store.get("showHidden", false),
+};
+
+// ---------- helpers ----------
+function ago(t){
+  if (!t) return "";
+  const s = (Date.now() - new Date(t)) / 1000;
+  if (s < 0) return "in " + dur(-s);
+  if (s < 45) return "just now";
+  return dur(s) + " ago";
+}
+function dur(s){
+  if (s < 3600) return Math.round(s / 60) + "m";
+  if (s < 86400) return Math.round(s / 3600) + "h";
+  return Math.round(s / 86400) + "d";
+}
+function when(t){ return t ? new Date(t).toLocaleString() : ""; }
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 2600);
+}
+async function api(path, body){
+  const opts = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
+  const r = await fetch(path, opts);
+  let j = null; try { j = await r.json(); } catch {}
+  if (!r.ok) throw new Error((j && j.error) || ("HTTP " + r.status));
+  return j;
+}
+const nsLabel = ns => ns || "cluster-scoped";
+const fullName = it => it.namespace ? it.namespace + "/" + it.name : it.name;
+
+// Same semantics as rules.go: globs on kind/namespace (case-insensitive, * does
+// not cross "/"), kind also tried against base_kind; unanchored regexes.
+function globRe(g){
+  let out = "";
+  for (const ch of g.toLowerCase()) {
+    if (ch === "*") out += "[^/]*";
+    else if (ch === "?") out += "[^/]";
+    else out += ch.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp("^" + out + "$");
+}
+function compileRule(r){
+  const c = {};
+  try {
+    if (r.kind) c.kind = globRe(r.kind);
+    if (r.namespace) c.ns = globRe(r.namespace);
+    if (r.name_regex) c.name = new RegExp(r.name_regex);
+    if (r.error_regex) c.err = new RegExp(r.error_regex);
+  } catch { return null; }
+  return c;
+}
+function matches(c, it){
+  if (!c) return false;
+  if (c.kind && !c.kind.test(it.kind.toLowerCase()) && !c.kind.test(it.base_kind.toLowerCase())) return false;
+  if (c.ns && !c.ns.test((it.namespace || "").toLowerCase())) return false;
+  if (c.name && !c.name.test(it.name)) return false;
+  if (c.err && !(it.errors || []).some(e => c.err.test(e))) return false;
+  return true;
+}
+function countRule(r){ const c = compileRule(r); return c ? data.items.filter(it => matches(c, it)).length : 0; }
+function describeRule(r){
+  const parts = [];
+  parts.push(r.kind ? `<code>${esc(r.kind)}</code> findings` : "Findings");
+  if (r.namespace) parts.push(`in <code>${esc(r.namespace)}</code>`);
+  if (r.name_regex) parts.push(`named like <code>${esc(r.name_regex)}</code>`);
+  if (r.error_regex) parts.push(`with errors matching <code>${esc(r.error_regex)}</code>`);
+  if (!r.namespace) parts.push("in any namespace");
+  return parts.join(" ");
+}
+const reEscape = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Turn an error line into a reusable pattern: drop trailing lists, generalise
+// the object name and numbers.
+function errorPattern(it){
+  let e = (it.errors || [])[0];
+  if (!e) return "";
+  e = e.replace(/\s*[:(]?\s*\[.*$/, "").trim();
+  let p = reEscape(e);
+  if (it.name && it.name.length > 3) p = p.split(reEscape(it.name)).join(".+");
+  p = p.replace(/\d+/g, "\\d+");
+  return p.length > 160 ? p.slice(0, 160) : p;
+}
+function kubectlCmd(it){
+  const k = it.base_kind.toLowerCase();
+  return it.namespace ? `kubectl -n ${it.namespace} describe ${k} ${it.name}` : `kubectl describe ${k} ${it.name}`;
+}
+
+// ---------- data ----------
+async function load(){
+  try {
+    const [r, h] = await Promise.all([api("/api/results"), api("/api/health")]);
+    data = r; health = h;
+    for (const k of [...selected]) if (!data.items.some(i => i.key === k)) selected.delete(k);
+    render();
+  } catch (e) {
+    $("#banners").innerHTML = `<div class="banner bad"><b>Cannot reach the API:</b> ${esc(e.message)}</div>`;
+  }
+}
+
+// ---------- rendering ----------
+function render(){ renderHealth(); renderTiles(); renderFilters(); renderList(); renderBulk(); }
+
+function primaryInstance(){
+  const ins = (health && health.instances) || [];
+  return ins.find(i => i.status === "failing") || ins.find(i => i.status !== "ok") || ins[0];
+}
+
+function renderHealth(){
+  if (!health) return;
+  const pill = $("#pill"), s = health.status;
+  pill.className = "pill s-" + s;
+  const inst = primaryInstance();
+  let label = s === "ok" ? "Healthy" : s === "failing" ? "Failing" : "Degraded";
+  if (inst && inst.analysis.status === "failing") label = "Analysis failing · " + inst.analysis.reason;
+  else if (inst && inst.model) label += " · " + inst.backend + " · " + inst.model;
+  else if (inst && !inst.ai_enabled) label += " · AI disabled";
+  $("#pillText").textContent = label;
+  $("#polled").textContent = health.frontend.last_poll ? "updated " + ago(health.frontend.last_poll) : "";
+  $("#polled").title = when(health.frontend.last_poll);
+
+  let b = "";
+  for (const i of health.instances || []) {
+    if (i.analysis.status === "failing") {
+      b += `<div class="banner bad"><b>${esc(i.name)}: ${esc(i.analysis.reason)}</b> — ${esc(i.backend)}${i.model ? " · " + esc(i.model) : ""}, last failure ${esc(ago(i.analysis.last_at))}${i.analysis.count > 1 ? ` (${i.analysis.count}×)` : ""}. ${esc(i.analysis.hint)}
+        Findings may be missing new AI explanations until this is fixed.</div>`;
+    }
+  }
+  if (health.status !== "ok" && !b) b = `<div class="banner warn">${esc(health.summary)}</div>`;
+  if (!data.writable && !health.frontend.read_only) b += `<div class="banner warn">Hiding is unavailable: the data directory is not writable, so hide rules could not be saved.</div>`;
+  $("#banners").innerHTML = b;
+
+  const f = health.frontend, n = f.notifier;
+  let html = `<h2>Service health</h2><div class="hgrid">`;
+  for (const i of health.instances || []) {
+    const a = i.analysis;
+    html += `<div class="hcard"><h3><span class="s-${esc(i.status)}"><span class="dot" style="display:inline-block"></span></span>K8sGPT <code>${esc(i.name)}</code></h3>
+      <dl class="kv">
+        <dt>AI backend</dt><dd>${esc(i.backend || "—")}${i.base_url ? " · " + esc(i.base_url) : ""}</dd>
+        <dt>Model</dt><dd>${esc(i.model || "—")}</dd>
+        <dt>AI</dt><dd>${i.ai_enabled ? "enabled" : "disabled"}${i.anonymized ? " · anonymized" : ""}</dd>
+        <dt>k8sgpt</dt><dd>${esc(i.version || "—")}</dd>
+        <dt>Server</dt><dd>${i.server.found ? `${i.server.ready}/${i.server.desired} ready` : esc(i.server.error || "unknown")}</dd>
+        <dt>Analyzers</dt><dd title="${esc((i.filters || []).join(", "))}">${(i.filters || []).length || "default"}</dd>
+        <dt>Analysis</dt><dd>${a.status === "failing" ? `<b style="color:var(--bad)">${esc(a.reason)}</b>` : esc(a.status)}${a.last_at ? ` · last failure ${esc(ago(a.last_at))}` : ""}${a.count > 1 ? ` · ${a.count}×` : ""}</dd>
+        ${a.status === "failing" ? `<dt>Fix</dt><dd>${esc(a.hint)}</dd>` : ""}
+      </dl>${a.message ? `<div class="msg">${esc(a.message)}</div>` : ""}</div>`;
+  }
+  if (!(health.instances || []).length) html += `<div class="hcard"><h3>No K8sGPT resource</h3><div class="meta">${esc(health.summary)}</div></div>`;
+  html += `<div class="hcard"><h3><span class="s-${f.last_poll_error || n.last_error ? "degraded" : "ok"}"><span class="dot" style="display:inline-block"></span></span>This dashboard</h3>
+    <dl class="kv">
+      <dt>Version</dt><dd>${esc(f.version)}</dd>
+      <dt>Last poll</dt><dd>${esc(ago(f.last_poll) || "never")} · every ${esc(f.poll_interval)}</dd>
+      ${f.last_poll_error ? `<dt>Poll error</dt><dd style="color:var(--bad)">${esc(f.last_poll_error)}</dd>` : ""}
+      <dt>Storage</dt><dd>${f.store_writable ? "writable" : "not writable (memory only)"}${f.read_only ? " · read-only mode" : ""}</dd>
+      <dt>Notifications</dt><dd>${n.configured ? `Apprise · ${esc(n.format)}${n.tag ? " · tag " + esc(n.tag) : ""}` : "off (no Apprise URL)"}</dd>
+      ${n.last_sent ? `<dt>Last sent</dt><dd>${esc(ago(n.last_sent))}</dd>` : ""}
+      ${n.last_error ? `<dt>Send error</dt><dd style="color:var(--bad)">${esc(n.last_error)} (${esc(ago(n.last_error_at))})</dd>` : ""}
+    </dl>
+    ${n.configured && !f.read_only ? `<div style="margin-top:8px"><button class="btn small" type="button" id="testNotify">Send test notification</button></div>` : ""}
+  </div></div>`;
+  $("#health").innerHTML = html;
+  const t = $("#testNotify");
+  if (t) t.onclick = async () => {
+    t.disabled = true;
+    try { await api("/api/test-notification", {}); toast("Test notification sent"); }
+    catch (e) { toast("Send failed: " + e.message); }
+    t.disabled = false; load();
+  };
+}
+
+function renderTiles(){
+  const s = data.summary || {};
+  const tiles = [["", "Open findings", s.visible ?? 0], ["new", "New in 24h", s.new_24h ?? 0], ["hidden", "Hidden", s.hidden ?? 0]];
+  for (const [cat, n] of Object.entries(s.by_category || {}).sort((a, b) => b[1] - a[1])) tiles.push(["cat:" + cat, cat, n]);
+  $("#tiles").innerHTML = tiles.map(([id, l, n]) =>
+    `<button type="button" class="panel tile${st.tile === id && id ? " on" : ""}" data-tile="${esc(id)}"><div class="n">${n}</div><div class="l">${esc(l)}</div></button>`).join("");
+}
+
+function renderFilters(){
+  const nss = [...new Set(data.items.map(i => i.namespace))].sort();
+  const kinds = [...new Set(data.items.map(i => i.kind))].sort();
+  const opt = (v, l, cur) => `<option value="${esc(v)}"${v === cur ? " selected" : ""}>${esc(l)}</option>`;
+  $("#fNs").innerHTML = opt("", "All namespaces", st.ns) + nss.map(n => opt(n === "" ? "\u0000" : n, nsLabel(n), st.ns)).join("");
+  $("#fKind").innerHTML = opt("", "All kinds", st.kind) + kinds.map(k => opt(k, k, st.kind)).join("");
+  $("#groupBy").value = st.groupBy;
+  $("#showHidden").checked = st.showHidden;
+  $("#q").value = st.q;
+  const active = data.rules.filter(r => !r.expired).length;
+  $("#rulesBtn").textContent = `Rules (${active}${data.stale_ignores.length ? " · " + data.stale_ignores.length + " stale" : ""})`;
+}
+
+function visibleItems(){
+  const q = st.q.trim().toLowerCase();
+  const now = Date.now();
+  return data.items.filter(it => {
+    const hidden = !!it.hidden;
+    if (st.tile === "hidden") { if (!hidden) return false; }
+    else if (hidden && !st.showHidden && it.key !== st.q.trim()) return false;
+    if (st.tile === "new" && !(it.first_seen && now - new Date(it.first_seen) < 864e5)) return false;
+    if (st.tile.startsWith("cat:") && (it.category || it.base_kind) !== st.tile.slice(4)) return false;
+    if (st.ns && it.namespace !== (st.ns === "\u0000" ? "" : st.ns)) return false;
+    if (st.kind && it.kind !== st.kind) return false;
+    if (q) {
+      const hay = [it.key, it.kind, it.namespace, it.name, ...(it.errors || []), it.problem || ""].join(" ").toLowerCase();
+      if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+}
+
+function hiddenReason(it){
+  const h = it.hidden;
+  if (!h) return "";
+  let s;
+  if (h.by === "ignore") s = "Hidden individually";
+  else {
+    const r = data.rules.find(x => x.id === h.rule_id);
+    s = "Hidden by " + (h.from === "config" ? "config rule" : "rule") + (r ? ": " + describeRule(r) : "");
+  }
+  if (h.note) s += ` — “${esc(h.note)}”`;
+  if (h.until) s += ` · until ${esc(when(h.until))}`;
+  return s;
+}
+
+function card(it){
+  const isNew = it.first_seen && Date.now() - new Date(it.first_seen) < 864e5;
+  const sel = selected.has(it.key);
+  const sol = it.solution || [];
+  return `<article class="panel card${it.hidden ? " hid" : ""}" data-key="${esc(it.key)}">
+    <div class="chead">
+      ${data.writable ? `<input type="checkbox" class="sel" aria-label="Select" ${sel ? "checked" : ""}>` : ""}
+      <div class="ctitle">
+        <div class="nm">${esc(it.name)}</div>
+        <div class="sub">${esc(nsLabel(it.namespace))}${it.parent_object ? " · parent " + esc(it.parent_object) : ""}</div>
+        <div class="badges"><span class="badge kind">${esc(it.kind)}</span>
+          ${isNew ? `<span class="badge new">new</span>` : ""}
+          ${it.lifecycle && it.lifecycle !== "historical" ? `<span class="badge">${esc(it.lifecycle)}</span>` : ""}
+          ${it.hidden ? `<span class="badge hidden">hidden</span>` : ""}</div>
+      </div>
+    </div>
+    ${(it.errors || []).length ? `<ul class="errs">${it.errors.map(e => `<li>${esc(e)}</li>`).join("")}</ul>` : ""}
+    ${it.problem ? `<p class="problem">${esc(it.problem)}</p>` : ""}
+    ${sol.length ? `<div class="solh">Suggested fix</div><ol class="sol">${sol.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+    ${it.details && sol.length ? `<details class="raw"><summary>Full AI explanation</summary><pre>${esc(it.details)}</pre></details>` : ""}
+    ${!it.details ? `<div class="meta">No AI explanation yet.</div>` : ""}
+    ${it.hidden ? `<div class="why">${hiddenReason(it)}</div>` : ""}
+    <div class="cfoot">
+      <span title="${esc(when(it.first_seen))}">${it.first_seen ? "seen " + esc(ago(it.first_seen)) : ""}</span>
+      <span class="sp"></span>
+      <button class="btn small" type="button" data-act="copy" title="${esc(kubectlCmd(it))}">Copy kubectl</button>
+      ${data.writable ? (it.hidden
+        ? (it.hidden.by === "ignore" ? `<button class="btn small" type="button" data-act="unhide">Unhide</button>` : `<button class="btn small" type="button" data-act="rules">Rule…</button>`)
+        : `<button class="btn small" type="button" data-act="hide">Hide…</button>`) : ""}
+    </div>
+  </article>`;
+}
+
+function renderList(){
+  const items = visibleItems();
+  if (!items.length) {
+    const why = data.items.length ? "No findings match the current filters." : (data.generated_at ? "No findings — K8sGPT reports nothing wrong." : "Waiting for the first poll…");
+    $("#list").innerHTML = `<div class="panel empty">${why}</div>`;
+    return;
+  }
+  const groups = new Map();
+  for (const it of items) {
+    const g = st.groupBy === "kind" ? it.kind : st.groupBy === "namespace" ? nsLabel(it.namespace) : "All findings";
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(it);
+  }
+  const keys = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+  $("#list").innerHTML = keys.map(g => `<section class="group"><h2>${esc(g)} <span class="count">${groups.get(g).length}</span></h2>
+    <div class="cards">${groups.get(g).map(card).join("")}</div></section>`).join("");
+  focusHash();
+}
+
+function renderBulk(){
+  const n = selected.size;
+  $("#bulk").hidden = !n || !data.writable;
+  $("#bulkN").textContent = `${n} selected`;
+}
+
+// ---------- hide dialog ----------
+let hideTargets = [];
+function suggestions(targets){
+  const out = [];
+  const same = f => targets.every(t => t[f] === targets[0][f]) ? targets[0][f] : null;
+  const kind = same("kind"), ns = same("namespace"), cat = same("category");
+  const add = (rule, label) => {
+    if (!out.some(o => JSON.stringify(o.rule) === JSON.stringify(rule))) out.push({rule, label});
+  };
+  if (kind && ns !== null && ns !== "") add({kind, namespace: ns}, `All <code>${esc(kind)}</code> findings in <code>${esc(ns)}</code>`);
+  if (kind) add({kind}, `All <code>${esc(kind)}</code> findings, any namespace`);
+  if (ns) add({namespace: ns}, `Everything in namespace <code>${esc(ns)}</code>`);
+  if (cat) add({kind: cat + "/*"}, `All <code>${esc(cat)}</code> findings`);
+  if (targets.length === 1) {
+    const p = errorPattern(targets[0]);
+    if (p) add({kind: targets[0].kind, error_regex: p}, `<code>${esc(targets[0].kind)}</code> with an error like <code>${esc(p)}</code>`);
+  }
+  return out.slice(0, 5);
+}
+
+function openHide(targets){
+  hideTargets = targets;
+  const one = targets.length === 1;
+  $("#hideTitle").textContent = one ? "Hide finding" : `Hide ${targets.length} findings`;
+  $("#hideSub").textContent = one ? `${targets[0].kind} ${fullName(targets[0])}` : targets.slice(0, 4).map(fullName).join(", ") + (targets.length > 4 ? "…" : "");
+  const sugg = suggestions(targets);
+  const t0 = targets[0];
+  let html = `<label class="opt"><input type="radio" name="scope" value="only" checked><span>${one ? "Only this finding" : `Only these ${targets.length} findings`}</span></label>`;
+  sugg.forEach((s, i) => {
+    html += `<label class="opt"><input type="radio" name="scope" value="s${i}"><span>${s.label}</span><span class="c">${countRule(s.rule)} now</span></label>`;
+  });
+  html += `<label class="opt"><input type="radio" name="scope" value="custom"><span>Custom rule</span><span class="c" id="customCount"></span></label>
+    <div class="fields" id="customFields">
+      <label>Kind (glob)<input name="kind" value="${esc(one ? t0.kind : "")}" placeholder="Security/* or Pod"></label>
+      <label>Namespace (glob)<input name="namespace" value="${esc(one ? t0.namespace : "")}" placeholder="longhorn-*"></label>
+      <label>Name (regex)<input name="name_regex" placeholder="^csi-node-"></label>
+      <label>Error text (regex)<input name="error_regex" placeholder="has small capacity"></label>
+    </div>`;
+  $("#hideOpts").innerHTML = html;
+  $("#hideOpts").dataset.sugg = JSON.stringify(sugg.map(s => s.rule));
+  $("#hideNote").value = ""; $("#hideFor").value = ""; $("#hideErr").textContent = "";
+  updateCustom();
+  $("#hideDlg").showModal();
+}
+function customRule(){
+  const r = {};
+  for (const inp of document.querySelectorAll("#customFields input")) if (inp.value.trim()) r[inp.name] = inp.value.trim();
+  return r;
+}
+function updateCustom(){
+  const el = $("#customCount"); if (!el) return;
+  const r = customRule();
+  const c = Object.keys(r).length ? compileRule(r) : null;
+  el.textContent = !Object.keys(r).length ? "" : c ? `${countRule(r)} now` : "invalid pattern";
+}
+$("#hideOpts").addEventListener("input", e => {
+  if (e.target.closest("#customFields")) { document.querySelector('input[name=scope][value=custom]').checked = true; updateCustom(); }
+});
+$("#hideForm").addEventListener("submit", async e => {
+  if (e.submitter && e.submitter.value === "cancel") return;
+  e.preventDefault();
+  const scope = document.querySelector("input[name=scope]:checked").value;
+  const note = $("#hideNote").value.trim();
+  const days = +$("#hideFor").value;
+  const until = days ? new Date(Date.now() + days * 864e5).toISOString() : undefined;
+  try {
+    if (scope === "only") {
+      const r = await api("/api/ignore", {keys: hideTargets.map(t => t.key), note, until});
+      toast(`Hid ${r.ignored} finding${r.ignored === 1 ? "" : "s"}`);
+    } else {
+      const rule = scope === "custom" ? customRule() : JSON.parse($("#hideOpts").dataset.sugg)[+scope.slice(1)];
+      if (!Object.keys(rule).length) throw new Error("Fill in at least one field");
+      await api("/api/rules", {rule, note, until});
+      toast(`Rule added — hides ${countRule(rule)} finding${countRule(rule) === 1 ? "" : "s"}`);
+    }
+    selected.clear();
+    $("#hideDlg").close();
+    load();
+  } catch (err) { $("#hideErr").textContent = err.message; }
+});
+
+// ---------- rules dialog ----------
+function renderRules(){
+  let html = "";
+  if (!data.rules.length) html += `<div class="meta">No rules yet. Use <b>Hide…</b> on a finding to add one.</div>`;
+  for (const r of data.rules) {
+    html += `<div class="rule${r.expired ? " exp" : ""}"><div class="d">${describeRule(r)}
+      <div class="m">${r.from === "config" ? "config file" : "added " + esc(ago(r.at))} · matches ${r.matches}${r.until ? (r.expired ? " · expired " : " · until ") + esc(when(r.until)) : ""}${r.note ? ` · “${esc(r.note)}”` : ""}</div></div>
+      ${r.from === "dashboard" && data.writable ? `<button class="btn small danger" type="button" data-del="${esc(r.id)}">Remove</button>` : ""}</div>`;
+  }
+  if (data.stale_ignores.length) {
+    html += `<h2 style="margin-top:14px;font-size:.95rem">Hidden findings that no longer exist</h2>`;
+    for (const ig of data.stale_ignores) {
+      html += `<div class="rule"><div class="d"><code>${esc(ig.kind)}</code> ${esc(ig.namespace ? ig.namespace + "/" : "")}${esc(ig.name)}<div class="m">hidden ${esc(ago(ig.at))}${ig.note ? ` · “${esc(ig.note)}”` : ""}</div></div>
+        ${data.writable ? `<button class="btn small" type="button" data-unig="${esc(ig.key)}">Forget</button>` : ""}</div>`;
+    }
+  }
+  $("#rulesList").innerHTML = html;
+}
+$("#rulesList").addEventListener("click", async e => {
+  const del = e.target.closest("[data-del]"), un = e.target.closest("[data-unig]");
+  try {
+    if (del) { await api("/api/rules/delete", {id: del.dataset.del}); toast("Rule removed"); }
+    else if (un) { await api("/api/unignore", {keys: [un.dataset.unig]}); toast("Forgotten"); }
+    else return;
+    await load(); renderRules();
+  } catch (err) { toast(err.message); }
+});
+$("#rulesBtn").onclick = () => { renderRules(); $("#rulesDlg").showModal(); };
+$("#rulesClose").onclick = () => $("#rulesDlg").close();
+
+// ---------- events ----------
+$("#list").addEventListener("click", async e => {
+  const cardEl = e.target.closest(".card"); if (!cardEl) return;
+  const it = data.items.find(i => i.key === cardEl.dataset.key); if (!it) return;
+  if (e.target.classList.contains("sel")) {
+    e.target.checked ? selected.add(it.key) : selected.delete(it.key);
+    renderBulk(); return;
+  }
+  const act = e.target.closest("[data-act]"); if (!act) return;
+  if (act.dataset.act === "hide") openHide([it]);
+  else if (act.dataset.act === "rules") { renderRules(); $("#rulesDlg").showModal(); }
+  else if (act.dataset.act === "unhide") {
+    try { await api("/api/unignore", {keys: [it.key]}); toast("Unhidden"); load(); } catch (err) { toast(err.message); }
+  } else if (act.dataset.act === "copy") {
+    try { await navigator.clipboard.writeText(kubectlCmd(it)); toast("Copied: " + kubectlCmd(it)); }
+    catch { toast(kubectlCmd(it)); }
+  }
+});
+$("#tiles").addEventListener("click", e => {
+  const t = e.target.closest("[data-tile]"); if (!t) return;
+  st.tile = st.tile === t.dataset.tile ? "" : t.dataset.tile;
+  renderTiles(); renderList();
+});
+let qTimer;
+$("#q").addEventListener("input", e => {
+  st.q = e.target.value;
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => {
+    history.replaceState(null, "", st.q ? "#q=" + encodeURIComponent(st.q) : location.pathname);
+    renderList();
+  }, 150);
+});
+$("#fNs").onchange = e => { st.ns = e.target.value; renderList(); };
+$("#fKind").onchange = e => { st.kind = e.target.value; renderList(); };
+$("#groupBy").onchange = e => { st.groupBy = e.target.value; store.set("groupBy", st.groupBy); renderList(); };
+$("#showHidden").onchange = e => { st.showHidden = e.target.checked; store.set("showHidden", st.showHidden); renderList(); };
+$("#pill").onclick = () => {
+  const h = $("#health"); h.hidden = !h.hidden;
+  $("#pill").setAttribute("aria-expanded", String(!h.hidden));
+  store.set("healthOpen", !h.hidden);
+};
+$("#refresh").onclick = async () => {
+  $("#refresh").disabled = true;
+  try { await api("/api/refresh", {}); } catch {}
+  setTimeout(async () => { await load(); $("#refresh").disabled = false; toast("Refreshed"); }, 1500);
+};
+$("#bulkHide").onclick = () => openHide(data.items.filter(i => selected.has(i.key) && !i.hidden));
+$("#bulkUnhide").onclick = async () => {
+  try { const r = await api("/api/unignore", {keys: [...selected]}); toast(`Unhid ${r.unignored}`); selected.clear(); load(); }
+  catch (err) { toast(err.message); }
+};
+$("#bulkAll").onclick = () => { for (const it of visibleItems()) selected.add(it.key); renderList(); renderBulk(); };
+$("#bulkClear").onclick = () => { selected.clear(); renderList(); renderBulk(); };
+
+// Deep links from notifications: #q=<key>
+function readHash(){
+  const m = location.hash.match(/^#q=(.*)$/);
+  if (m) { st.q = decodeURIComponent(m[1].replace(/\+/g, " ")); focusHash.done = false; }
+}
+function focusHash(){
+  if (!location.hash.startsWith("#q=")) return;
+  const el = document.querySelector(`.card[data-key="${CSS.escape(st.q)}"]`);
+  if (!el) return;
+  el.classList.add("focus");
+  if (!focusHash.done) { focusHash.done = true; el.scrollIntoView({block: "center"}); }
+}
+window.addEventListener("hashchange", () => { readHash(); renderFilters(); renderList(); });
+
+readHash();
+if (store.get("healthOpen", false)) { $("#health").hidden = false; $("#pill").setAttribute("aria-expanded", "true"); }
+load();
+setInterval(() => { if (!document.hidden && !document.querySelector("dialog[open]")) load(); }, 60000);
+</script>
 </body>
 </html>

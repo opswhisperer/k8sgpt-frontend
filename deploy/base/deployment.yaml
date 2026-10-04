@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8sgpt-frontend
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+spec:
+  replicas: 1  # state lives on a ReadWriteOnce volume
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8sgpt-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: k8sgpt-frontend
+    spec:
+      serviceAccountName: k8sgpt-frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: frontend
+          image: k8sgpt-frontend  # set by `images:` in kustomization.yaml
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: RESULT_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: DATA_DIR
+              value: /data
+            - name: CONFIG
+              value: /config/config.yaml
+          # Optional settings: APPRISE_URL, UI_URL, APPRISE_FORMAT, NOTIFY_DELAY, … (see README).
+          # Put APPRISE_URL in the Secret when it embeds credentials.
+          envFrom:
+            - configMapRef:
+                name: k8sgpt-frontend-settings
+                optional: true
+            - secretRef:
+                name: k8sgpt-frontend-secrets
+                optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 12
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: k8sgpt-frontend-data
+        - name: config
+          configMap:
+            name: k8sgpt-frontend-config
+      terminationGracePeriodSeconds: 10

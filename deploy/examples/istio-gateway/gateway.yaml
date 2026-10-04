@@ -1,0 +1,66 @@
+# HTTPS ingress through an Istio Gateway API Gateway, with a cert-manager certificate.
+# Hostnames and the issuer are replaced from settings.env by kustomization.yaml.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: k8sgpt-frontend-cert
+spec:
+  secretName: k8sgpt-frontend-tls
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  dnsNames:
+    - example.invalid
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: k8sgpt-frontend-gateway
+spec:
+  gatewayClassName: istio
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: example.invalid
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: example.invalid
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: k8sgpt-frontend-tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: k8sgpt-frontend-http-redirect
+spec:
+  parentRefs:
+    - name: k8sgpt-frontend-gateway
+      sectionName: http
+  hostnames:
+    - example.invalid
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: k8sgpt-frontend-https
+spec:
+  parentRefs:
+    - name: k8sgpt-frontend-gateway
+      sectionName: https
+  hostnames:
+    - example.invalid
+  rules:
+    - backendRefs:
+        - name: k8sgpt-frontend
+          port: 80

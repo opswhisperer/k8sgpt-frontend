@@ -1,0 +1,12 @@
+# Dashboard hide rules, single hides and notification state (a few KB of JSON).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: k8sgpt-frontend-data
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
