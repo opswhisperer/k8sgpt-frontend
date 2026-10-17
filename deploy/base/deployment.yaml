@@ -1,6 +1,8 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    restarter.clusterflux.io/auto-restart: 'true'
   name: k8sgpt-frontend
   labels:
     app.kubernetes.io/name: k8sgpt-frontend
@@ -13,6 +15,8 @@ spec:
       app.kubernetes.io/name: k8sgpt-frontend
   template:
     metadata:
+      annotations:
+        diun.enable: 'true'
       labels:
         app.kubernetes.io/name: k8sgpt-frontend
     spec:
