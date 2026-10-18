@@ -130,6 +130,7 @@ dialog .dsub{color:var(--muted);font-size:.85rem;margin-bottom:12px;overflow-wra
     <span class="grow"></span>
     <span class="meta" id="polled"></span>
     <button class="btn" id="refresh" type="button">Refresh</button>
+    <span class="meta" id="user" hidden></span>
   </header>
 
   <div id="banners"></div>
@@ -232,6 +233,8 @@ function toast(msg){
 async function api(path, body){
   const opts = body === undefined ? {} : {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)};
   const r = await fetch(path, opts);
+  // Session expired (OIDC login): reload, and the server sends us through the login.
+  if (r.status === 401) { location.reload(); throw new Error("login required"); }
   let j = null; try { j = await r.json(); } catch {}
   if (!r.ok) throw new Error((j && j.error) || ("HTTP " + r.status));
   return j;
@@ -308,7 +311,12 @@ async function load(){
 }
 
 // ---------- rendering ----------
-function render(){ renderHealth(); renderTiles(); renderFilters(); renderList(); renderBulk(); }
+function renderUser(){
+  const u = $("#user");
+  u.hidden = !data.user;
+  if (data.user) u.innerHTML = `${esc(data.user)} · <a href="/auth/logout">Sign out</a>`;
+}
+function render(){ renderUser(); renderHealth(); renderTiles(); renderFilters(); renderList(); renderBulk(); }
 
 function primaryInstance(){
   const ins = (health && health.instances) || [];
@@ -428,6 +436,7 @@ function hiddenReason(it){
     const r = data.rules.find(x => x.id === h.rule_id);
     s = "Hidden by " + (h.from === "config" ? "config rule" : "rule") + (r ? ": " + describeRule(r) : "");
   }
+  if (h.user) s += ` by ${esc(h.user)}`;
   if (h.note) s += ` — “${esc(h.note)}”`;
   if (h.until) s += ` · until ${esc(when(h.until))}`;
   return s;
@@ -578,13 +587,13 @@ function renderRules(){
   if (!data.rules.length) html += `<div class="meta">No rules yet. Use <b>Hide…</b> on a finding to add one.</div>`;
   for (const r of data.rules) {
     html += `<div class="rule${r.expired ? " exp" : ""}"><div class="d">${describeRule(r)}
-      <div class="m">${r.from === "config" ? "config file" : "added " + esc(ago(r.at))} · matches ${r.matches}${r.until ? (r.expired ? " · expired " : " · until ") + esc(when(r.until)) : ""}${r.note ? ` · “${esc(r.note)}”` : ""}</div></div>
+      <div class="m">${r.from === "config" ? "config file" : "added " + esc(ago(r.at)) + (r.user ? " by " + esc(r.user) : "")} · matches ${r.matches}${r.until ? (r.expired ? " · expired " : " · until ") + esc(when(r.until)) : ""}${r.note ? ` · “${esc(r.note)}”` : ""}</div></div>
       ${r.from === "dashboard" && data.writable ? `<button class="btn small danger" type="button" data-del="${esc(r.id)}">Remove</button>` : ""}</div>`;
   }
   if (data.stale_ignores.length) {
     html += `<h2 style="margin-top:14px;font-size:.95rem">Hidden findings that no longer exist</h2>`;
     for (const ig of data.stale_ignores) {
-      html += `<div class="rule"><div class="d"><code>${esc(ig.kind)}</code> ${esc(ig.namespace ? ig.namespace + "/" : "")}${esc(ig.name)}<div class="m">hidden ${esc(ago(ig.at))}${ig.note ? ` · “${esc(ig.note)}”` : ""}</div></div>
+      html += `<div class="rule"><div class="d"><code>${esc(ig.kind)}</code> ${esc(ig.namespace ? ig.namespace + "/" : "")}${esc(ig.name)}<div class="m">hidden ${esc(ago(ig.at))}${ig.user ? " by " + esc(ig.user) : ""}${ig.note ? ` · “${esc(ig.note)}”` : ""}</div></div>
         ${data.writable ? `<button class="btn small" type="button" data-unig="${esc(ig.key)}">Forget</button>` : ""}</div>`;
     }
   }

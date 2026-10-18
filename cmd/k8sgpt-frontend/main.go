@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,6 +35,12 @@ func main() {
 	notifyDelay := flag.Int("notify-delay", 300, "seconds an issue must persist before it is notified; 0 = immediately (env: NOTIFY_DELAY)")
 	notifyMax := flag.Int("notify-max-items", 10, "most issues listed in one notification (env: NOTIFY_MAX_ITEMS)")
 	notifyResolved := flag.Bool("notify-resolved", false, "also notify when notified issues clear (env: NOTIFY_RESOLVED)")
+	oidcIssuer := flag.String("oidc-issuer", "", "OIDC issuer URL; empty = no login (env: OIDC_ISSUER)")
+	oidcClientID := flag.String("oidc-client-id", "", "OIDC client ID (env: OIDC_CLIENT_ID)")
+	oidcClientSecret := flag.String("oidc-client-secret", "", "OIDC client secret (env: OIDC_CLIENT_SECRET)")
+	oidcRedirectURL := flag.String("oidc-redirect-url", "", "OIDC callback URL; empty = UI_URL + /auth/callback (env: OIDC_REDIRECT_URL)")
+	oidcScopes := flag.String("oidc-scopes", "openid profile email", "space-separated OIDC scopes (env: OIDC_SCOPES)")
+	oidcGroups := flag.String("oidc-allowed-groups", "", "comma-separated groups allowed to log in; empty = anyone the IdP admits (env: OIDC_ALLOWED_GROUPS)")
 	healthWindow := flag.Int("health-window", 2700, "seconds an analysis failure counts as current (env: HEALTH_WINDOW)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
@@ -81,6 +88,12 @@ func main() {
 	envOverrideInt("notify-max-items", "NOTIFY_MAX_ITEMS")
 	envOverrideBool("notify-resolved", "NOTIFY_RESOLVED")
 	envOverrideInt("health-window", "HEALTH_WINDOW")
+	envOverrideString("oidc-issuer", "OIDC_ISSUER")
+	envOverrideString("oidc-client-id", "OIDC_CLIENT_ID")
+	envOverrideString("oidc-client-secret", "OIDC_CLIENT_SECRET")
+	envOverrideString("oidc-redirect-url", "OIDC_REDIRECT_URL")
+	envOverrideString("oidc-scopes", "OIDC_SCOPES")
+	envOverrideString("oidc-allowed-groups", "OIDC_ALLOWED_GROUPS")
 
 	if *pollInterval < 10 {
 		*pollInterval = 10
@@ -89,6 +102,32 @@ func main() {
 	case "html", "markdown", "text":
 	default:
 		log.Fatalf("--apprise-format must be html, markdown or text, not %q", *appriseFormat)
+	}
+
+	var auth *Auth
+	if *oidcIssuer != "" {
+		redirect := *oidcRedirectURL
+		if redirect == "" && *uiURL != "" {
+			redirect = strings.TrimSuffix(*uiURL, "/") + "/auth/callback"
+		}
+		var groups []string
+		for _, g := range strings.Split(*oidcGroups, ",") {
+			if g = strings.TrimSpace(g); g != "" {
+				groups = append(groups, g)
+			}
+		}
+		var err error
+		auth, err = newAuth(OIDCConfig{Issuer: *oidcIssuer, ClientID: *oidcClientID, ClientSecret: *oidcClientSecret,
+			RedirectURL: redirect, Scopes: strings.Fields(*oidcScopes), AllowedGroups: groups})
+		if err != nil {
+			log.Fatalf("oidc: %v", err)
+		}
+		log.Printf("oidc: login via %s, callback %s, allowed groups %v", *oidcIssuer, redirect, groups)
+		go func() {
+			if _, err := auth.discover(context.Background()); err != nil {
+				log.Printf("oidc: %v (retried at the next login)", err)
+			}
+		}()
 	}
 
 	// Build k8s config: try in-cluster first, fall back to kubeconfig file.
@@ -120,8 +159,8 @@ func main() {
 		ReadOnly:       *readOnly,
 	})
 
-	log.Printf("k8sgpt-frontend %s: namespace=%s data-dir=%q config-rules=%d read-only=%t notifications=%t format=%s poll=%ds delay=%ds",
-		version, *resultNS, *dataDir, len(conf.Rules), *readOnly, notifier.Enabled(), *appriseFormat, *pollInterval, *notifyDelay)
+	log.Printf("k8sgpt-frontend %s: namespace=%s data-dir=%q config-rules=%d read-only=%t notifications=%t format=%s poll=%ds delay=%ds login=%t",
+		version, *resultNS, *dataDir, len(conf.Rules), *readOnly, notifier.Enabled(), *appriseFormat, *pollInterval, *notifyDelay, auth != nil)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -129,7 +168,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	registerHandlers(mux, app)
-	srv := &http.Server{Addr: *addr, Handler: logRequests(mux), ReadHeaderTimeout: 10 * time.Second}
+	var handler http.Handler = logRequests(mux)
+	if auth != nil {
+		auth.Register(mux)
+		handler = auth.Middleware(handler)
+	}
+	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -147,7 +191,11 @@ func main() {
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			log.Printf("%s %s", r.Method, r.URL.Path)
+			if u := userOf(r); u != "" {
+				log.Printf("%s %s by %s", r.Method, r.URL.Path, u)
+			} else {
+				log.Printf("%s %s", r.Method, r.URL.Path)
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

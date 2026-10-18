@@ -45,7 +45,7 @@ spec:
             - name: CONFIG
               value: /config/config.yaml
           # Optional settings: APPRISE_URL, UI_URL, APPRISE_FORMAT, NOTIFY_DELAY, … (see README).
-          # Put APPRISE_URL in the Secret when it embeds credentials.
+          # Put APPRISE_URL in the Secret when it embeds credentials, and OIDC_CLIENT_SECRET always.
           envFrom:
             - configMapRef:
                 name: k8sgpt-frontend-settings

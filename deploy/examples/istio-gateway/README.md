@@ -8,6 +8,13 @@ cp settings.env.example settings.env   # edit; settings.env is gitignored
 kubectl apply -k deploy/examples/istio-gateway
 ```
 
-The dashboard has no login of its own. If the hostname is reachable by people who
-should not hide findings, add `READ_ONLY=true` to `settings.env` or put an
-authenticating proxy in front of it.
+To require a login, set the `OIDC_*` settings in `settings.env` (see the main README's
+Login section) and put the client secret in a Secret:
+
+```bash
+kubectl -n k8sgpt-operator-system create secret generic k8sgpt-frontend-secrets \
+  --from-literal=OIDC_CLIENT_SECRET=…
+```
+
+Without a login, anyone who can reach the hostname can hide findings; add
+`READ_ONLY=true` to `settings.env` if that's not what you want.

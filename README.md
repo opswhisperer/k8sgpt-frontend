@@ -21,7 +21,8 @@ live with:
   provider is rate limiting, the model doesn't exist or the backend is unreachable, the
   dashboard says so, gives a fix hint, and sends one alert and one recovery notice.
 
-It runs next to the operator and is **read-only** against the cluster.
+It runs next to the operator and is **read-only** against the cluster. It can require
+an **OIDC login** (Authentik, Keycloak, Dex, Entra ID, …) and records who hid what.
 
 ## Quick start
 
@@ -57,6 +58,12 @@ Defaults shown are the ones `deploy/base` sets.
 | `POLL_INTERVAL` | `60` | Seconds between polls |
 | `HEALTH_WINDOW` | `2700` | Seconds an analysis failure counts as current (the operator retries every ~15 min) |
 | `READ_ONLY` | `false` | Disable hiding, rule changes and test notifications in the dashboard |
+| `OIDC_ISSUER` | *(off)* | OIDC issuer URL; setting it requires a login (see [Login](#login)) |
+| `OIDC_CLIENT_ID` | | OIDC client ID |
+| `OIDC_CLIENT_SECRET` | | OIDC client secret (put it in the Secret) |
+| `OIDC_REDIRECT_URL` | `UI_URL` + `/auth/callback` | Callback URL registered with the provider |
+| `OIDC_SCOPES` | `openid profile email` | Scopes to request |
+| `OIDC_ALLOWED_GROUPS` | | Comma-separated groups (from the `groups` claim) allowed in; empty = anyone the provider admits |
 | `RESULT_NAMESPACE` | pod namespace | Namespace of the `K8sGPT` and `Result` resources |
 | `DATA_DIR` | `/data` | Where dashboard rules, hides and notification state are stored |
 | `CONFIG` | `/config/config.yaml` | Hide rules kept in git (see below) |
@@ -81,6 +88,61 @@ configMapGenerator:
 [`deploy/examples/istio-gateway`](deploy/examples/istio-gateway) adds an HTTPS
 Gateway, HTTPRoutes and a cert-manager Certificate, with settings from a local
 `settings.env`.
+
+## Login
+
+Set `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET` and the dashboard and API
+require a login through your OpenID Connect provider. Register a confidential client with
+redirect URI `https://<your host>/auth/callback` (or set `OIDC_REDIRECT_URL`), and give it
+an RSA or EC signing key: ID tokens signed with the client secret (HS256) are refused.
+
+- Login uses the authorization code flow with PKCE, a nonce, and ID token signature,
+  issuer, audience and expiry checks.
+- The session is a signed, HttpOnly, `SameSite=Lax` cookie valid for 12 hours, keyed from
+  the client secret, so it survives restarts and rotating the secret signs everyone out.
+- `OIDC_ALLOWED_GROUPS` checks the `groups` claim (from the ID token, or userinfo if the
+  token has none). You can instead, or also, restrict the application at the provider.
+- Hides and rules record the user who made them, shown in the dashboard.
+- **Sign out** clears the session and goes to the provider's end-session endpoint.
+- `/healthz` and `/readyz` stay open for probes. Scripts calling the API need a session
+  cookie once login is on.
+
+### Authentik
+
+Create an OAuth2/OpenID provider and an application, e.g. with a blueprint:
+
+```yaml
+version: 1
+metadata:
+  name: k8sgpt-frontend
+entries:
+- model: authentik_providers_oauth2.oauth2provider
+  id: provider
+  identifiers: {name: K8sGPT}
+  attrs:
+    client_type: confidential
+    client_id: k8sgpt
+    issuer_mode: per_provider
+    include_claims_in_id_token: true
+    signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+    redirect_uris:
+    - {matching_mode: strict, url: "https://k8sgpt.example.com/auth/callback"}
+    authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+    invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+    property_mappings:
+    - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-openid]]
+    - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-email]]
+    - !Find [authentik_providers_oauth2.scopemapping, [managed, goauthentik.io/providers/oauth2/scope-profile]]
+- model: authentik_core.application
+  identifiers: {slug: k8sgpt}
+  attrs:
+    name: K8sGPT
+    provider: !KeyOf provider
+```
+
+Then `OIDC_ISSUER=https://<authentik host>/application/o/k8sgpt/`, `OIDC_CLIENT_ID=k8sgpt`,
+and the client secret from the provider's page in the Secret `k8sgpt-frontend-secrets`.
+Authentik's `profile` scope includes `groups`, so `OIDC_ALLOWED_GROUPS` works as is.
 
 ## Hiding findings
 
@@ -142,9 +204,9 @@ notice follows when it recovers. Neither repeats, including across restarts.
 
 - **Cluster access** is read-only: a namespaced Role with `get/list/watch` on K8sGPT
   results and K8sGPT resources, and `get/list` on events and deployments.
-- **The dashboard has no login.** Anyone who can reach it can hide findings. Set
-  `READ_ONLY=true`, or put it behind an authenticating proxy, when exposing it beyond
-  people who should do that.
+- **Login is off by default.** Without `OIDC_ISSUER`, anyone who can reach the dashboard
+  can hide findings. Turn on [Login](#login), set `READ_ONLY=true`, or put it behind an
+  authenticating proxy when exposing it beyond people who should do that.
 - **Write endpoints** only accept `Content-Type: application/json`. Browsers cannot
   send that cross-site without a CORS preflight, which the server never allows.
 - **Secrets in errors:** anything that looks like an API key in an error message is
@@ -164,6 +226,10 @@ notice follows when it recovers. Neither repeats, including across restarts.
 | POST | `/api/refresh` | Poll now |
 | POST | `/api/test-notification` | Send a sample notification |
 | GET | `/healthz`, `/readyz` | Liveness, and readiness after the first successful poll |
+| GET | `/auth/login`, `/auth/callback`, `/auth/logout` | OIDC login, when `OIDC_ISSUER` is set |
+
+With login on, `/api/results` also returns `user`, and hides and rules carry the `user`
+who made them.
 
 A finding's key is `kind/namespace/name`, for example
 `Security/ServiceAccount/apps/default`. Cluster-scoped objects have an empty

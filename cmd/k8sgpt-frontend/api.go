@@ -35,6 +35,7 @@ type resultsResponse struct {
 	StaleIgnores []Ignore   `json:"stale_ignores"`
 	Summary      Summary    `json:"summary"`
 	Writable     bool       `json:"writable"`
+	User         string     `json:"user,omitempty"` // logged-in user, when OIDC login is on
 	GeneratedAt  *time.Time `json:"generated_at,omitempty"`
 }
 
@@ -73,7 +74,9 @@ func registerHandlers(mux *http.ServeMux, app *App) {
 			writeJSON(w, http.StatusOK, results)
 			return
 		}
-		writeJSON(w, http.StatusOK, app.resultsResponse())
+		resp := app.resultsResponse()
+		resp.User = userOf(r)
+		writeJSON(w, http.StatusOK, resp)
 	})
 
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
@@ -113,7 +116,7 @@ func registerHandlers(mux *http.ServeMux, app *App) {
 				continue
 			}
 			igs = append(igs, Ignore{Key: k, Kind: res.Kind, Namespace: res.Namespace, Name: res.Name,
-				Note: truncate(req.Note, maxNote), At: now, Until: req.Until})
+				Note: truncate(req.Note, maxNote), At: now, Until: req.Until, User: userOf(r)})
 		}
 		if len(igs) > 0 {
 			if err := app.store.AddIgnores(igs); err != nil {
@@ -153,7 +156,7 @@ func registerHandlers(mux *http.ServeMux, app *App) {
 			return
 		}
 		rule := Rule{Kind: req.Rule.Kind, Namespace: req.Rule.Namespace, NameRegex: req.Rule.NameRegex,
-			ErrorRegex: req.Rule.ErrorRegex, Note: req.Note, Until: req.Until}
+			ErrorRegex: req.Rule.ErrorRegex, Note: req.Note, Until: req.Until, User: userOf(r)}
 		if rule.Note == "" {
 			rule.Note = req.Rule.Note
 		}

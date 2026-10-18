@@ -25,6 +25,7 @@ type Ignore struct {
 	Note      string     `json:"note,omitempty"`
 	At        time.Time  `json:"at"`
 	Until     *time.Time `json:"until,omitempty"`
+	User      string     `json:"user,omitempty"` // who hid it, when OIDC login is on
 }
 
 // Rule hides every finding it matches. Every field that is set must match:
@@ -42,6 +43,7 @@ type Rule struct {
 	At         *time.Time `json:"at,omitempty"`
 	Until      *time.Time `json:"until,omitempty"`
 	From       string     `json:"from,omitempty"` // "dashboard" or "config"
+	User       string     `json:"user,omitempty"` // who added it, when OIDC login is on
 
 	nameRe, errRe *regexp.Regexp
 }
@@ -122,6 +124,7 @@ type Hidden struct {
 	Note   string     `json:"note,omitempty"`
 	At     *time.Time `json:"at,omitempty"`
 	Until  *time.Time `json:"until,omitempty"`
+	User   string     `json:"user,omitempty"`
 }
 
 // RuleView is a rule as reported by the API.
@@ -155,7 +158,7 @@ func applyRules(results []Result, ignores map[string]Ignore, rules []Rule, now t
 		items[i] = Item{Result: *res}
 		if ig, ok := ignores[res.Key]; ok && !expired(ig.Until, now) {
 			at := ig.At
-			items[i].Hidden = &Hidden{By: "ignore", Note: ig.Note, At: &at, Until: ig.Until}
+			items[i].Hidden = &Hidden{By: "ignore", Note: ig.Note, At: &at, Until: ig.Until, User: ig.User}
 		}
 		for j := range views {
 			if views[j].Expired || !rules[j].Match(res) {
@@ -164,7 +167,7 @@ func applyRules(results []Result, ignores map[string]Ignore, rules []Rule, now t
 			views[j].Matches++
 			if items[i].Hidden == nil {
 				r := &rules[j]
-				items[i].Hidden = &Hidden{By: "rule", RuleID: r.ID, From: r.From, Note: r.Note, At: r.At, Until: r.Until}
+				items[i].Hidden = &Hidden{By: "rule", RuleID: r.ID, From: r.From, Note: r.Note, At: r.At, Until: r.Until, User: r.User}
 			}
 		}
 	}

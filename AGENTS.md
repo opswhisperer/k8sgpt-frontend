@@ -21,6 +21,9 @@ aren't obvious from the code.
   don't rename or repurpose them.
 - **Notifications go through `html/template`** so finding text is escaped. Keep to tags
   Apprise converts for most services (`p b i code a ul ol li`).
+- **Login (OIDC) is optional and stdlib-only** (`auth.go`): with `OIDC_ISSUER` set, the
+  middleware guards everything but `/healthz`, `/readyz` and `/auth/*`. Record the acting
+  user with `userOf(r)` on anything new that changes app state.
 - **Error messages can contain API keys.** Pass anything from the operator or the AI
   backend through `scrubMessage` before showing or sending it.
 - **New settings** get a flag with an env fallback in `main.go`, a row in the README table,
