@@ -209,11 +209,19 @@ Labels are only a state or a category, never a finding's name, namespace or erro
 | `k8sgpt_frontend_last_poll_success` | 1 if the latest poll read results and checked instances without error |
 | `k8sgpt_frontend_build_info{version}` | Always 1 |
 
-With the Prometheus Operator, add the ServiceMonitor component to your overlay:
+With the Prometheus Operator, add the ServiceMonitor component to your overlay, plus any
+label your Prometheus selects ServiceMonitors by (kube-prometheus-stack uses
+`release: <release name>`):
 
 ```yaml
 components:
   - https://github.com/opswhisperer/k8sgpt-frontend//deploy/components/prometheus?ref=main
+patches:
+  - target: { kind: ServiceMonitor, name: k8sgpt-frontend }
+    patch: |
+      - op: add
+        path: /metadata/labels/release
+        value: prometheus-stack
 ```
 
 ## Notifications
