@@ -58,6 +58,7 @@ Defaults shown are the ones `deploy/base` sets.
 | `POLL_INTERVAL` | `60` | Seconds between polls |
 | `HEALTH_WINDOW` | `2700` | Seconds an analysis failure counts as current (the operator retries every ~15 min) |
 | `READ_ONLY` | `false` | Disable hiding, rule changes and test notifications in the dashboard |
+| `METRICS_LISTEN` | `:9090` | Address for Prometheus [`/metrics`](#metrics), which has no login; empty = off |
 | `OIDC_ISSUER` | *(off)* | OIDC issuer URL; setting it requires a login (see [Login](#login)) |
 | `OIDC_CLIENT_ID` | | OIDC client ID |
 | `OIDC_CLIENT_SECRET` | | OIDC client secret (put it in the Secret) |
@@ -187,6 +188,34 @@ Analysis failures come from the operator's `AnalysisFailed` events (and from
 When analysis starts failing, one Apprise **failure** alert is sent. One **success**
 notice follows when it recovers. Neither repeats, including across restarts.
 
+## Metrics
+
+Prometheus metrics are served at `/metrics` on a port of their own (`METRICS_LISTEN`,
+default `:9090`, the Service's `metrics` port). That port has **no login**, even with
+`OIDC_ISSUER` set, and serves nothing else. Keep it off any public route: the
+[`istio-gateway`](deploy/examples/istio-gateway) example routes only the `http` port.
+
+The counts are the dashboard tiles', after hides and rules, so they agree with what the
+dashboard shows (the operator's own `k8sgpt_number_of_results` counts every Result).
+Labels are only a state or a category, never a finding's name, namespace or error.
+
+| Metric | |
+|---|---|
+| `k8sgpt_frontend_findings{state}` | Findings by `state`: `visible`, `hidden_rule` or `hidden_ignore`. They add up to all findings |
+| `k8sgpt_frontend_visible_findings{category}` | Visible findings by category, as grouped on the dashboard |
+| `k8sgpt_frontend_new_findings_24h` | Visible findings first seen in the last 24 hours |
+| `k8sgpt_frontend_stale_ignores` | Hides of single findings that are no longer present |
+| `k8sgpt_frontend_last_poll_timestamp_seconds` | When results were last read successfully (0 before the first) |
+| `k8sgpt_frontend_last_poll_success` | 1 if the latest poll read results and checked instances without error |
+| `k8sgpt_frontend_build_info{version}` | Always 1 |
+
+With the Prometheus Operator, add the ServiceMonitor component to your overlay:
+
+```yaml
+components:
+  - https://github.com/opswhisperer/k8sgpt-frontend//deploy/components/prometheus?ref=main
+```
+
 ## Notifications
 
 - A finding is notified once it has been present for `NOTIFY_DELAY`. Findings that
@@ -207,6 +236,8 @@ notice follows when it recovers. Neither repeats, including across restarts.
 - **Login is off by default.** Without `OIDC_ISSUER`, anyone who can reach the dashboard
   can hide findings. Turn on [Login](#login), set `READ_ONLY=true`, or put it behind an
   authenticating proxy when exposing it beyond people who should do that.
+- **Metrics** (`METRICS_LISTEN`, port 9090) have no login. They carry only counts, but
+  keep the port inside the cluster.
 - **Write endpoints** only accept `Content-Type: application/json`. Browsers cannot
   send that cross-site without a CORS preflight, which the server never allows.
 - **Secrets in errors:** anything that looks like an API key in an error message is

@@ -110,6 +110,15 @@ func (a *App) Ready() bool {
 	return a.ready
 }
 
+// PollStatus reports when results were last read successfully, and whether
+// the latest poll (results and instance checks) ran without error. ok is
+// false until the first poll has run.
+func (a *App) PollStatus() (last *time.Time, ok bool) {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.health.Frontend.LastPoll, !a.health.CheckedAt.IsZero() && a.health.Frontend.LastPollError == ""
+}
+
 // Health returns the latest health snapshot with live frontend fields.
 func (a *App) Health() Health {
 	a.mu.RLock()

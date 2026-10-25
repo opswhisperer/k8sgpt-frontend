@@ -1,0 +1,8 @@
+# Optional: scrape /metrics with the Prometheus Operator. Needs its
+# ServiceMonitor CRD, so it is kept out of the base. In an overlay:
+#   components:
+#     - https://github.com/opswhisperer/k8sgpt-frontend//deploy/components/prometheus?ref=main
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - servicemonitor.yaml

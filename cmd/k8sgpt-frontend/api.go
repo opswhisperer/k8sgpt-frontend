@@ -22,11 +22,13 @@ const (
 
 // Summary counts findings for the dashboard tiles.
 type Summary struct {
-	Total      int            `json:"total"`
-	Visible    int            `json:"visible"`
-	Hidden     int            `json:"hidden"`
-	New24h     int            `json:"new_24h"`
-	ByCategory map[string]int `json:"by_category"`
+	Total          int            `json:"total"`
+	Visible        int            `json:"visible"`
+	Hidden         int            `json:"hidden"`
+	HiddenByRule   int            `json:"hidden_by_rule"`   // Hidden split by Hidden.By
+	HiddenByIgnore int            `json:"hidden_by_ignore"` // (rule or ignore)
+	New24h         int            `json:"new_24h"`
+	ByCategory     map[string]int `json:"by_category"`
 }
 
 type resultsResponse struct {
@@ -227,6 +229,11 @@ func (app *App) resultsResponse() resultsResponse {
 	for _, it := range items {
 		if it.Hidden != nil {
 			sum.Hidden++
+			if it.Hidden.By == "ignore" {
+				sum.HiddenByIgnore++
+			} else {
+				sum.HiddenByRule++
+			}
 			continue
 		}
 		sum.Visible++

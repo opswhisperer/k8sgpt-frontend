@@ -63,4 +63,4 @@ spec:
   rules:
     - backendRefs:
         - name: k8sgpt-frontend
-          port: 80
+          port: 80  # the http port only; never route metrics (9090), which has no auth

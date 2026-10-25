@@ -11,3 +11,7 @@ spec:
     - name: http
       port: 80
       targetPort: http
+    # Metrics have no auth: keep this port off any public route.
+    - name: metrics
+      port: 9090
+      targetPort: metrics

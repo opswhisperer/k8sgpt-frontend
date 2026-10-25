@@ -14,5 +14,5 @@ FROM gcr.io/distroless/static:nonroot
 COPY --from=build /out/k8sgpt-frontend /k8sgpt-frontend
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/k8sgpt-frontend/
 USER nonroot:nonroot
-EXPOSE 8080
+EXPOSE 8080 9090
 ENTRYPOINT ["/k8sgpt-frontend"]

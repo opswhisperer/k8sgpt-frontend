@@ -22,6 +22,7 @@ var version = "dev"
 
 func main() {
 	addr := flag.String("addr", ":8080", "listen address (env: ADDR)")
+	metricsListen := flag.String("metrics-listen", ":9090", "address for Prometheus /metrics (no auth; keep it off the public gateway); empty disables (env: METRICS_LISTEN)")
 	resultNS := flag.String("result-namespace", "k8sgpt-operator-system", "namespace holding the K8sGPT and Result resources (env: RESULT_NAMESPACE)")
 	kubeconfig := flag.String("kubeconfig", "", "path to kubeconfig; empty = in-cluster (env: KUBECONFIG)")
 	dataDir := flag.String("data-dir", "data", "directory for ignores, rules and notification state; empty = memory only (env: DATA_DIR)")
@@ -74,6 +75,7 @@ func main() {
 	}
 
 	envOverrideString("addr", "ADDR")
+	envOverrideString("metrics-listen", "METRICS_LISTEN")
 	envOverrideString("result-namespace", "RESULT_NAMESPACE")
 	envOverrideString("kubeconfig", "KUBECONFIG")
 	envOverrideString("data-dir", "DATA_DIR")
@@ -174,13 +176,25 @@ func main() {
 		handler = auth.Middleware(handler)
 	}
 	srv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	metricsSrv := metricsServer(*metricsListen, app)
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+		if metricsSrv != nil {
+			_ = metricsSrv.Shutdown(shutdown)
+		}
 		_ = srv.Shutdown(shutdown)
 	}()
 
+	if metricsSrv != nil {
+		log.Printf("metrics on %s/metrics", *metricsListen)
+		go func() {
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Fatalf("metrics server error: %v", err)
+			}
+		}()
+	}
 	log.Printf("listening on %s", *addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)

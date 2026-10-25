@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: k8sgpt-frontend
+  labels:
+    app.kubernetes.io/name: k8sgpt-frontend
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: k8sgpt-frontend
+  endpoints:
+    - port: metrics
+      interval: 60s
